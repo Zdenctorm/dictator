@@ -22,15 +22,11 @@ xcodebuild \
 
 ditto "${APP_SOURCE}" "${APP_DIST}"
 
-# Do NOT run `codesign --deep` here. Release builds from xcodebuild already carry a
-# consistent ad-hoc/linker-signed main binary + Sparkle.framework. Re-signing the bundle
-# leaves Sparkle on a different Team ID than Dictator and dyld aborts at launch with:
-#   "mapping process and mapped file have different Team IDs"
-# For distribution signing, use scripts/sign_and_notarize.sh (Developer ID, inside-out).
-
-codesign --verify --deep --strict --verbose=2 "${APP_DIST}" || {
-  echo "Warning: local Release bundle failed strict codesign verify; run from Xcode Debug or use sign_and_notarize.sh." >&2
-}
+# xcodebuild with CODE_SIGNING_ALLOWED=NO leaves the main binary linker-signed while
+# embedded Sparkle helpers are adhoc/runtime — dyld then aborts with mismatched Team IDs.
+# Re-sign inside-out so every Mach-O shares one identity (adhoc "-" for local dist).
+ENTITLEMENTS="${ROOT_DIR}/Dictator/Resources/Dictator.entitlements" \
+  "${ROOT_DIR}/scripts/codesign_app_bundle.sh" "${APP_DIST}" "-"
 
 "${ROOT_DIR}/scripts/create_dmg.sh"
 

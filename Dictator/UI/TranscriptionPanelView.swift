@@ -374,27 +374,35 @@ private final class HistoryRowView: NSView, NSTextViewDelegate {
             }
             var attrs = baseAttributes()
 
-            let markupHelp = AccessibilitySupport.wordMarkupHelp(confidence: word.confidence, original: word.originalText)
+            let markupHelp = AccessibilitySupport.wordMarkupHelp(
+                confidence: Double(word.confidence),
+                original: word.originalText
+            )
 
             if let original = word.originalText {
                 attrs[.underlineStyle] = NSUnderlineStyle.single.rawValue
                 attrs[.underlineColor] = AppTheme.Color.success
-                attrs[.toolTip] = "Z „\(original)“ → „\(word.text)“"
-                attrs[.accessibilityHelp] = markupHelp
+                attrs[.toolTip] = markupHelp.isEmpty
+                    ? "Z „\(original)“ → „\(word.text)“"
+                    : "\(markupHelp) Z „\(original)“ → „\(word.text)“"
             } else if word.confidence < 0.65 {
                 attrs[.underlineStyle] = NSUnderlineStyle.patternDot.rawValue | NSUnderlineStyle.single.rawValue
                 attrs[.underlineColor] = AppTheme.Color.warning
                 if let url = DictatorWordLink.url(entryID: entry.id, wordIndex: index) {
                     attrs[.link] = url
                 }
-                attrs[.accessibilityHelp] = markupHelp
+                if !markupHelp.isEmpty {
+                    attrs[.toolTip] = markupHelp
+                }
             } else if word.confidence < 0.85 {
                 attrs[.underlineStyle] = NSUnderlineStyle.single.rawValue
                 attrs[.underlineColor] = NSColor.secondaryLabelColor
                 if let url = DictatorWordLink.url(entryID: entry.id, wordIndex: index) {
                     attrs[.link] = url
                 }
-                attrs[.accessibilityHelp] = markupHelp
+                if !markupHelp.isEmpty {
+                    attrs[.toolTip] = markupHelp
+                }
             }
 
             result.append(NSAttributedString(string: word.text, attributes: attrs))

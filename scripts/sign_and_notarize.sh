@@ -23,16 +23,8 @@ if [[ ! -d "${APP_PATH}" ]]; then
   "${ROOT_DIR}/scripts/build_release.sh"
 fi
 
-codesign \
-  --force \
-  --deep \
-  --options runtime \
-  --timestamp \
-  --entitlements "${ENTITLEMENTS}" \
-  --sign "${IDENTITY}" \
-  "${APP_PATH}"
-
-codesign --verify --deep --strict --verbose=2 "${APP_PATH}"
+export ENTITLEMENTS
+"${ROOT_DIR}/scripts/codesign_app_bundle.sh" "${APP_PATH}" "${IDENTITY}"
 spctl --assess --type execute --verbose=2 "${APP_PATH}" || true
 
 "${ROOT_DIR}/scripts/create_dmg.sh"
