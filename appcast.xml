@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+    <channel>
+        <title>Dictator</title>
+        <link>https://github.com/Zdenctorm/dictator</link>
+        <description>Most recent updates to Dictator</description>
+        <language>cs</language>
+        <item>
+            <title>Verze 1.0.0</title>
+            <pubDate>Tue, 19 May 2026 16:47:13 +0000</pubDate>
+            <sparkle:version>1779209196</sparkle:version>
+            <sparkle:shortVersionString>1.0.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+Nová verze Dictatoru.
+]]></description>
+            <enclosure
+                url="https://github.com/Zdenctorm/dictator/releases/download/v1.0.0/Dictator-1.0.0.dmg"
+                length="2773674"
+                type="application/octet-stream"
+                sparkle:edSignature="HpYaE2V1xgChEjDRj9yl3nXCROaeWT57U/Q7pYVyOsGJqs9KsCt8hutoiCZI4MXrIJpPITqTaCq8phJrBFtjDA==" />
+        </item>
+
+    </channel>
+</rss>
