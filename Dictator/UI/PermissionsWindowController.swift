@@ -37,10 +37,22 @@ final class PermissionsWindowController: NSWindowController {
     var onPermissionsGranted: (() -> Void)?
 
     private var checkTimer: Timer?
+    private var lastLoggedSnapshot: PermissionsSnapshot?
+    private var didRequestAccessibilityPromptThisSession = false
+    private let bundlePathLabel = AppTheme.label(
+        "",
+        font: AppTheme.Font.footnote,
+        color: AppTheme.Color.body,
+        lines: 0
+    )
     private let microphoneBadge = AppTheme.badge("Chybí", color: AppTheme.Color.warning)
     private let accessibilityBadge = AppTheme.badge("Chybí", color: AppTheme.Color.warning)
     private let microphoneButton = AppTheme.secondaryButton("Povolit mikrofon", target: nil, action: nil)
-    private let accessibilityButton = AppTheme.secondaryButton("Otevřít Nastavení", target: nil, action: nil)
+    private let accessibilityButton = AppTheme.secondaryButton(
+        "Přidat do Zpřístupnění…",
+        target: nil,
+        action: nil
+    )
     private let checkAgainButton = AppTheme.primaryButton("Zkontrolovat znovu", target: nil, action: nil)
     private let revealAppButton = AppTheme.secondaryButton("Ukázat ve Finderu", target: nil, action: nil)
     private let copyLogButton = AppTheme.secondaryButton("Zkopírovat log", target: nil, action: nil)
@@ -52,9 +64,6 @@ final class PermissionsWindowController: NSWindowController {
     )
     private var keyTestHintTimer: Timer?
     private let hotkeyPicker = NSPopUpButton(frame: .zero, pullsDown: false)
-    private let vocabularyTextView = NSTextView()
-    private let vocabularyStatusLabel = AppTheme.label("", font: AppTheme.Font.footnote, color: AppTheme.Color.body)
-    private var vocabularyStatusResetTimer: Timer?
 
     init() {
         let window = NSWindow(
@@ -79,7 +88,10 @@ final class PermissionsWindowController: NSWindowController {
 
     override func showWindow(_ sender: Any?) {
         super.showWindow(sender)
+        AppWindowPresenter.activateApp()
         AppWindowPresenter.present(window)
+        bundlePathLabel.stringValue = "Aktuální kopie: \(Bundle.main.bundleURL.path)"
+        requestAccessibilityPromptIfNeeded()
     }
 
     override func close() {
@@ -141,74 +153,6 @@ final class PermissionsWindowController: NSWindowController {
         DiagnosticsLogger.log("Hotkey preference changed to \(HotkeyChoice.allCases[idx].rawValue)")
     }
 
-    private func buildVocabularyCard() -> NSView {
-        let title = AppTheme.label("Vlastní slovník (volitelné)", font: AppTheme.Font.headline, color: AppTheme.Color.title)
-        let detail = AppTheme.label(
-            "Whisper se občas netrefí do produktových termínů. Přidej je sem, jeden na řádek. Pro fonetické varianty: MyCompany: my company, maj company",
-            font: AppTheme.Font.footnote,
-            color: AppTheme.Color.body,
-            lines: 0
-        )
-
-        vocabularyTextView.isEditable = true
-        vocabularyTextView.isSelectable = true
-        vocabularyTextView.isAutomaticQuoteSubstitutionEnabled = false
-        vocabularyTextView.isAutomaticDashSubstitutionEnabled = false
-        vocabularyTextView.isAutomaticTextReplacementEnabled = false
-        vocabularyTextView.isAutomaticSpellingCorrectionEnabled = false
-        vocabularyTextView.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
-        vocabularyTextView.textColor = AppTheme.Color.title
-        vocabularyTextView.drawsBackground = true
-        vocabularyTextView.backgroundColor = AppTheme.Color.surface
-        vocabularyTextView.isVerticallyResizable = true
-        vocabularyTextView.isHorizontallyResizable = false
-        vocabularyTextView.textContainer?.widthTracksTextView = true
-        vocabularyTextView.textContainerInset = NSSize(width: 8, height: 8)
-        vocabularyTextView.string = VocabularyStore.currentRawText
-
-        let scrollView = NSScrollView()
-        scrollView.hasVerticalScroller = true
-        scrollView.borderType = .lineBorder
-        scrollView.drawsBackground = false
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.documentView = vocabularyTextView
-        scrollView.heightAnchor.constraint(equalToConstant: 160).isActive = true
-
-        let saveButton = AppTheme.secondaryButton("Uložit slovník", target: self, action: #selector(saveVocabulary))
-        saveButton.bezelColor = AppTheme.Color.accent
-        let resetButton = AppTheme.secondaryButton("Obnovit výchozí", target: self, action: #selector(resetVocabulary))
-        let buttonSpacer = NSView()
-        buttonSpacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        let buttons = NSStackView(views: [saveButton, resetButton, buttonSpacer, vocabularyStatusLabel])
-        buttons.orientation = .horizontal
-        buttons.alignment = .centerY
-        buttons.spacing = AppTheme.Spacing.row
-
-        return AppTheme.card([title, detail, scrollView, buttons])
-    }
-
-    @objc private func saveVocabulary() {
-        VocabularyStore.currentRawText = vocabularyTextView.string
-        flashVocabularyStatus("Uloženo. Whisper si načítá nový slovník.", color: AppTheme.Color.success)
-    }
-
-    @objc private func resetVocabulary() {
-        VocabularyStore.resetToDefault()
-        vocabularyTextView.string = VocabularyStore.currentRawText
-        flashVocabularyStatus("Slovník vrácený na výchozí.", color: AppTheme.Color.body)
-    }
-
-    private func flashVocabularyStatus(_ message: String, color: NSColor) {
-        vocabularyStatusLabel.stringValue = message
-        vocabularyStatusLabel.textColor = color
-        vocabularyStatusResetTimer?.invalidate()
-        vocabularyStatusResetTimer = Timer.scheduledTimer(withTimeInterval: 4, repeats: false) { [weak self] _ in
-            Task { @MainActor in
-                self?.vocabularyStatusLabel.stringValue = ""
-            }
-        }
-    }
-
     private func buildUI() {
         let logo = AppLogoView()
         logo.translatesAutoresizingMaskIntoConstraints = false
@@ -249,17 +193,24 @@ final class PermissionsWindowController: NSWindowController {
             button: microphoneButton
         )
 
+        bundlePathLabel.lineBreakMode = .byTruncatingMiddle
+
         let accessibilityRow = permissionRow(
             number: "2",
             title: "Zpřístupnění",
-            detail: "V Nastavení musí být povolená přesně tato kopie Dictatoru. Cesta: Soukromí a zabezpečení → Zpřístupnění (anglicky Accessibility).",
+            detail: """
+            macOS aplikaci do seznamu nepřidá sama — ani po výzvě. Klepni na tlačítko níže: otevře se Nastavení \
+            a ve Finderu uvidíš přesně tuto kopii Dictator.app. V Soukromí a zabezpečení → Zpřístupnění klepni na + \
+            a vyber tuto aplikaci (nebo ji přetáhni). Starý záznam „Dictator" z jiné složky smaž.
+            """,
             badge: accessibilityBadge,
-            button: accessibilityButton
+            button: accessibilityButton,
+            extraViews: [bundlePathLabel]
         )
 
         let hotkeyCard = buildHotkeyCard()
-        let vocabularyCard = buildVocabularyCard()
 
+        keyTestStatusLabel.setAccessibilityLabel("Test diktovací klávesy")
         let keyTestCard = AppTheme.card([
             AppTheme.label("Otestuj diktovací klávesu", font: AppTheme.Font.headline, color: AppTheme.Color.title),
             keyTestStatusLabel
@@ -291,7 +242,6 @@ final class PermissionsWindowController: NSWindowController {
                 microphoneRow,
                 accessibilityRow,
                 hotkeyCard,
-                vocabularyCard,
                 keyTestCard,
                 footerButtons,
                 helper
@@ -303,7 +253,14 @@ final class PermissionsWindowController: NSWindowController {
 
     /// Numbered checklist row: large claret digit on the left, content stack on the right.
     /// Replaces a card so two permissions don't feel like four UI primitives.
-    private func permissionRow(number: String, title: String, detail: String, badge: NSTextField, button: NSButton) -> NSView {
+    private func permissionRow(
+        number: String,
+        title: String,
+        detail: String,
+        badge: NSTextField,
+        button: NSButton,
+        extraViews: [NSView] = []
+    ) -> NSView {
         let numberLabel = NSTextField(labelWithString: number)
         numberLabel.font = NSFont.systemFont(ofSize: 32, weight: .semibold)
         numberLabel.textColor = AppTheme.Color.accent
@@ -323,7 +280,10 @@ final class PermissionsWindowController: NSWindowController {
         titleRow.spacing = AppTheme.Spacing.row
         badge.setContentHuggingPriority(.required, for: .horizontal)
 
-        let content = NSStackView(views: [titleRow, detailLabel, button])
+        var contentChildren: [NSView] = [titleRow, detailLabel]
+        contentChildren.append(contentsOf: extraViews)
+        contentChildren.append(button)
+        let content = NSStackView(views: contentChildren)
         content.orientation = .vertical
         content.alignment = .leading
         content.spacing = AppTheme.Spacing.tight
@@ -386,14 +346,33 @@ final class PermissionsWindowController: NSWindowController {
 
     private func refreshPermissionState() {
         let snapshot = Self.currentSnapshot
-        DiagnosticsLogger.log("Permissions refreshed. microphone=\(snapshot.microphone.label), accessibility=\(snapshot.accessibility.label)")
+        if snapshot != lastLoggedSnapshot {
+            lastLoggedSnapshot = snapshot
+            DiagnosticsLogger.log(
+                "Permissions refreshed. microphone=\(snapshot.microphone.label), accessibility=\(snapshot.accessibility.label)"
+            )
+        }
 
         microphoneBadge.stringValue = snapshot.microphone.label
         microphoneBadge.textColor = snapshot.microphone.color
+        AccessibilitySupport.configure(
+            microphoneBadge,
+            label: "Mikrofon: \(snapshot.microphone.label)",
+            help: snapshot.microphone == .allowed
+                ? "Mikrofon je povolený."
+                : "Povol mikrofon pro nahrávání při držení diktovací klávesy."
+        )
         microphoneButton.isHidden = snapshot.microphone == .allowed
 
         accessibilityBadge.stringValue = snapshot.accessibility.label
         accessibilityBadge.textColor = snapshot.accessibility.color
+        AccessibilitySupport.configure(
+            accessibilityBadge,
+            label: "Zpřístupnění: \(snapshot.accessibility.label)",
+            help: snapshot.accessibility == .allowed
+                ? "Zpřístupnění je povolené."
+                : "Přidej tuto kopii Dictator.app do Soukromí a zabezpečení → Zpřístupnění."
+        )
         accessibilityButton.isHidden = snapshot.accessibility == .allowed
     }
 
@@ -406,17 +385,27 @@ final class PermissionsWindowController: NSWindowController {
     }
 
     @objc private func openAccessibilitySettings() {
-        DiagnosticsLogger.log("Accessibility settings opened")
+        DiagnosticsLogger.log("Accessibility onboarding flow started")
         AppWindowPresenter.activateApp()
         AppWindowPresenter.present(window)
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            _ = Self.isAccessibilityGranted(prompt: true)
-            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-                NSWorkspace.shared.open(url)
-            }
+        // 1) Finder na přesnou .app (uživatel ji vybere v dialogu + v Zpřístupnění).
+        AccessibilitySettings.revealRunningAppBundle()
+        // 2) Systémová výzva (pokud ještě nebyla).
+        _ = AccessibilitySettings.requestTrustPrompt()
+        // 3) Panel Zpřístupnění — až po krátké prodlevě, ať uživatel vidí Finder.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            AccessibilitySettings.openPrivacyPane()
             self.refreshPermissionState()
         }
+    }
+
+    /// Jednorázově při prvním zobrazení okna — samotný prompt appku do seznamu nepřidá, ale otevře dialog.
+    private func requestAccessibilityPromptIfNeeded() {
+        guard !didRequestAccessibilityPromptThisSession else { return }
+        didRequestAccessibilityPromptThisSession = true
+        guard !AccessibilitySettings.isTrusted() else { return }
+        _ = AccessibilitySettings.requestTrustPrompt()
     }
 
     @objc private func checkAgain() {
@@ -429,8 +418,7 @@ final class PermissionsWindowController: NSWindowController {
     }
 
     @objc private func revealCurrentApp() {
-        DiagnosticsLogger.log("Reveal current app requested. Bundle path: \(Bundle.main.bundleURL.path)")
-        NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
+        AccessibilitySettings.revealRunningAppBundle()
     }
 
     private func openMicrophoneSettings() {
@@ -446,7 +434,7 @@ final class PermissionsWindowController: NSWindowController {
     static var currentSnapshot: PermissionsSnapshot {
         PermissionsSnapshot(
             microphone: microphoneState,
-            accessibility: isAccessibilityGranted(prompt: false) ? .allowed : .needsReview
+            accessibility: AccessibilitySettings.isTrusted() ? .allowed : .needsReview
         )
     }
 
@@ -464,7 +452,9 @@ final class PermissionsWindowController: NSWindowController {
     }
 
     static func isAccessibilityGranted(prompt: Bool) -> Bool {
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: prompt] as CFDictionary
-        return AXIsProcessTrustedWithOptions(options)
+        if prompt {
+            return AccessibilitySettings.requestTrustPrompt()
+        }
+        return AccessibilitySettings.isTrusted()
     }
 }

@@ -11,6 +11,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     var onToggleDictation: (() -> Void)?
     var onTestTranscription: (() -> Void)?
     var onShowLastTranscription: (() -> Void)?
+    var onOpenLearnedTerms: (() -> Void)?
 
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let stateMachine: AppStateMachine
@@ -19,9 +20,10 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private var pulseTimer: Timer?
     private var transientResetTimer: Timer?
     private var baseStatusTitle = "Spouštím"
+    private var lastAnnouncedState: DictatorState?
 
     private let statusMenuItem = NSMenuItem(title: "Spouštím", action: nil, keyEquivalent: "")
-    private let hintMenuItem = NSMenuItem(title: "Podržte diktovací klávesu a mluvte", action: nil, keyEquivalent: "")
+    private let hintMenuItem = NSMenuItem(title: "Podrž diktovací klávesu a mluv", action: nil, keyEquivalent: "")
     private let dictationMenuItem = NSMenuItem(title: "Začít diktování (bez klávesy)", action: #selector(toggleDictation), keyEquivalent: "")
     private let testTranscriptionMenuItem = NSMenuItem(title: "Ověřit přepis (ukáže text)", action: #selector(runTranscriptionTest), keyEquivalent: "")
     private let lastTranscriptionMenuItem = NSMenuItem(title: "Poslední přepis…", action: #selector(showLastTranscription), keyEquivalent: "")
@@ -52,6 +54,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         menu.delegate = self
 
         statusMenuItem.isEnabled = false
+        AccessibilitySupport.configure(statusMenuItem, help: "Aktuální stav Dictatoru")
         menu.addItem(statusMenuItem)
 
         hintMenuItem.isEnabled = false
@@ -69,6 +72,10 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
         launchAtLoginItem.target = self
         menu.addItem(launchAtLoginItem)
+
+        let learnedItem = NSMenuItem(title: "Co se Dictator naučil…", action: #selector(openLearnedTerms), keyEquivalent: "")
+        learnedItem.target = self
+        menu.addItem(learnedItem)
 
         let setupItem = NSMenuItem(title: "Nastavení a oprávnění", action: #selector(openSetup), keyEquivalent: "")
         setupItem.target = self
@@ -97,32 +104,48 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         menu.addItem(quitItem)
 
         statusItem.menu = menu
+
+        if let button = statusItem.button {
+            button.setAccessibilityRole(.button)
+            button.setAccessibilityTitle("Dictator")
+        }
     }
 
     func menuWillOpen(_ menu: NSMenu) {
         launchAtLoginItem.state = isLaunchAtLoginEnabled ? .on : .off
-        hintMenuItem.title = "Podržte \(HotkeyPreference.current.hintLabel) a mluvte"
+        hintMenuItem.title = "Podrž \(HotkeyPreference.current.hintLabel) a mluv"
         refreshDictationMenuItems()
     }
 
     func refreshDictationMenuItems() {
-        switch stateMachine.state {
+        let state = stateMachine.state
+        let disabledHelp = state.dictationMenuDisabledHelp
+
+        switch state {
         case .recording:
             dictationMenuItem.title = "Ukončit diktování a vložit text"
             dictationMenuItem.isEnabled = true
+            AccessibilitySupport.configure(dictationMenuItem, help: nil)
             testTranscriptionMenuItem.title = "Ukončit test přepisu"
             testTranscriptionMenuItem.isEnabled = true
+            AccessibilitySupport.configure(testTranscriptionMenuItem, help: nil)
         case .idle:
             dictationMenuItem.title = "Začít diktování (bez klávesy)"
             dictationMenuItem.isEnabled = true
+            AccessibilitySupport.configure(dictationMenuItem, help: nil)
             testTranscriptionMenuItem.title = "Ověřit přepis (ukáže text)"
             testTranscriptionMenuItem.isEnabled = true
+            AccessibilitySupport.configure(testTranscriptionMenuItem, help: nil)
         case .transcribing, .injecting, .modelDownloading, .modelLoading, .launching:
             dictationMenuItem.isEnabled = false
             testTranscriptionMenuItem.isEnabled = false
+            AccessibilitySupport.configure(dictationMenuItem, help: disabledHelp)
+            AccessibilitySupport.configure(testTranscriptionMenuItem, help: disabledHelp)
         case .permissionsNeeded, .error:
             dictationMenuItem.isEnabled = false
             testTranscriptionMenuItem.isEnabled = false
+            AccessibilitySupport.configure(dictationMenuItem, help: disabledHelp)
+            AccessibilitySupport.configure(testTranscriptionMenuItem, help: disabledHelp)
         }
     }
 
@@ -135,37 +158,59 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             statusMenuItem.title = baseStatusTitle
         }
         hintMenuItem.title = contextualHint(for: state)
+        refreshDictationMenuItems()
+
         guard let button = statusItem.button else { return }
 
         switch state {
         case .idle:
-            setImage("mic", template: true)
-            button.toolTip = "Dictator je připravený. Držte Option (⌥) nebo diktujte z menu."
+            setImage("mic", template: true, decorativeDescription: "Mikrofon, připraveno")
+            button.toolTip = "Dictator je připravený. Podrž \(HotkeyPreference.current.hintLabel) nebo diktuj z menu."
         case .recording:
-            button.toolTip = "Nahrávám. Pusťte Option nebo ukončete z menu."
+            button.toolTip = "Nahrávám. Pusť klávesu nebo ukonči z menu."
             startRecordingPulse()
         case .transcribing:
-            setImage("waveform", template: true)
+            setImage("waveform", template: true, decorativeDescription: "Vlna, přepis")
             button.toolTip = "Přepisuji lokálně na tomto Macu."
         case .injecting:
-            setImage("keyboard", template: true)
+            setImage("keyboard", template: true, decorativeDescription: "Klávesnice, vkládání")
             button.toolTip = "Vkládám text."
         case .modelDownloading:
-            setImage("arrow.down.circle", template: true)
+            setImage("arrow.down.circle", template: true, decorativeDescription: "Stahování modelu")
             button.toolTip = "Stahuji a připravuji model Whisper."
         case .modelLoading:
-            setImage("cpu", template: true)
+            setImage("cpu", template: true, decorativeDescription: "Načítání modelu")
             button.toolTip = "Načítám model Whisper."
         case .permissionsNeeded:
-            setImage("mic.slash", template: true)
+            setImage("mic.slash", template: true, decorativeDescription: "Mikrofon vypnutý")
             button.toolTip = "Dictator potřebuje mikrofon a Zpřístupnění."
         case .error(let message):
-            setImage("exclamationmark.triangle", template: true)
+            setImage("exclamationmark.triangle", template: true, decorativeDescription: "Varování")
             button.toolTip = message
         case .launching:
-            setImage("mic", template: true)
+            setImage("mic", template: true, decorativeDescription: "Spouštění")
             button.toolTip = "Spouštím Dictator."
         }
+
+        applyStatusBarAccessibility(for: state, button: button)
+
+        if lastAnnouncedState != state {
+            lastAnnouncedState = state
+            switch state {
+            case .recording, .transcribing, .injecting:
+                AccessibilitySupport.announce(state.statusBarAccessibilityLabel)
+            case .error(let message):
+                AccessibilitySupport.announce("Chyba: \(message)")
+            default:
+                break
+            }
+        }
+    }
+
+    private func applyStatusBarAccessibility(for state: DictatorState, button: NSStatusBarButton) {
+        button.setAccessibilityLabel(state.statusBarAccessibilityLabel)
+        button.setAccessibilityHelp(state.statusBarAccessibilityHelp)
+        button.setAccessibilityRole(.button)
     }
 
     func showTransientStatus(_ message: String, duration: TimeInterval) {
@@ -183,25 +228,25 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private func contextualHint(for state: DictatorState) -> String {
         switch state {
         case .idle:
-            return "Držte \(HotkeyPreference.current.hintLabel) nebo použijte položku „Začít diktování“."
+            return "Podrž \(HotkeyPreference.current.hintLabel) nebo použij položku „Začít diktování“."
         case .recording:
-            return "Nahrávám — pusťte Option nebo zvolte „Ukončit diktování“."
+            return "Nahrávám — pusť klávesu nebo zvol „Ukončit diktování“."
         case .modelDownloading, .modelLoading, .launching:
-            return "Po dokončení přípravy modelu půjde diktovat pravým Optionem."
+            return "Po dokončení přípravy modelu půjde diktovat klávesou \(HotkeyPreference.current.hintLabel)."
         case .transcribing:
             return "Přepisuji lokálně — chvíli strpení."
         case .injecting:
-            return "Vkládám text — pokud to trvá dlouho, zkontrolujte oprávnění Zpřístupnění a log."
+            return "Vkládám text — pokud to trvá dlouho, zkontroluj Zpřístupnění a log."
         case .permissionsNeeded:
-            return "Doplňte oprávnění mikrofon + Zpřístupnění v Nastavení."
+            return "Doplň oprávnění mikrofon a Zpřístupnění v Nastavení."
         case .error:
             return "Je potřeba zásah — nápověda výše v menu."
         }
     }
 
-    private func setImage(_ symbolName: String, template: Bool) {
+    private func setImage(_ symbolName: String, template: Bool, decorativeDescription: String) {
         guard let button = statusItem.button else { return }
-        button.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
+        button.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: decorativeDescription)
         button.image?.isTemplate = template
         button.title = " Dictator"
     }
@@ -210,11 +255,17 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         var filled = false
         pulseTimer = Timer.scheduledTimer(withTimeInterval: 0.45, repeats: true) { [weak self] _ in
             Task { @MainActor in
+                guard let self, let button = self.statusItem.button else { return }
                 filled.toggle()
-                let image = NSImage(systemSymbolName: filled ? "mic.fill" : "mic", accessibilityDescription: nil)?
-                    .withSymbolConfiguration(NSImage.SymbolConfiguration(paletteColors: [.systemRed]))
-                self?.statusItem.button?.image = image
-                self?.statusItem.button?.image?.isTemplate = false
+                let recording = AppTheme.Color.recording
+                let image = NSImage(
+                    systemSymbolName: filled ? "mic.fill" : "mic",
+                    accessibilityDescription: "Mikrofon, nahrávám"
+                )?
+                    .withSymbolConfiguration(NSImage.SymbolConfiguration(paletteColors: [recording]))
+                button.image = image
+                button.image?.isTemplate = false
+                self.applyStatusBarAccessibility(for: self.stateMachine.state, button: button)
             }
         }
         pulseTimer?.fire()
@@ -233,7 +284,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             }
             launchAtLoginItem.state = isLaunchAtLoginEnabled ? .on : .off
         } catch {
-            stateMachine.transition(to: .error("Unable to update Launch at Login."))
+            stateMachine.transition(to: .error("Nepodařilo se změnit spouštění po přihlášení."))
         }
     }
 
@@ -247,6 +298,10 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     @objc private func showLastTranscription() {
         onShowLastTranscription?()
+    }
+
+    @objc private func openLearnedTerms() {
+        onOpenLearnedTerms?()
     }
 
     @objc private func openSetup() {

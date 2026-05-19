@@ -14,16 +14,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var recordingOverlay: RecordingOverlayController!
     private var permissionsWindowController: PermissionsWindowController?
     private var launchWindowController: LaunchWindowController?
+    private var learnedTermsWindowController: LearnedTermsWindowController?
     private var updaterController: SPUStandardUpdaterController!
     private var lastTranscriptionText: String?
     private var transcriptionHistory: [TranscriptionHistoryEntry] = []
-    private let maxTranscriptionHistoryCount = 40
+    private let maxTranscriptionHistoryCount = 200
     private var backgroundInjectTask: Task<Void, Never>?
     private var startupTask: Task<Void, Never>?
     private var microphoneArmTask: Task<Void, Never>?
     private var stateCancellable: AnyCancellable?
     private var optionHeld = false
     private var transcriptionTestMode = false
+    private var historySaveTimer: Timer?
+    private var audioCachePurgeTimer: Timer?
+    /// Poslední úspěšný přepis pro retry-detektor.
+    private var lastDictation: (entry: TranscriptionHistoryEntry, recordedAt: Date)?
+    private let retryWindow: TimeInterval = 8.0
     /// Frontmost app at the moment user STARTED dictation. Captured here (not at end) because by
     /// the time the user releases Option, focus may have shifted (e.g. recording overlay, status
     /// menu, or window activation). At keyDown the user is still in their target app.
@@ -48,15 +54,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.hotkeyManager.preference = HotkeyPreference.current
             DiagnosticsLogger.log("HotkeyManager updated to preference \(HotkeyPreference.current.rawValue)")
         }
-        NotificationCenter.default.addObserver(
-            forName: .dictatorVocabularyChanged,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { [weak self] in
-                await self?.transcriptionEngine.reloadVocabulary()
-            }
-        }
         updaterController = SPUStandardUpdaterController(
             startingUpdater: true,
             updaterDelegate: nil,
@@ -69,6 +66,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         launchWindowController = LaunchWindowController(stateMachine: stateMachine)
 
+        NotificationCenter.default.addObserver(
+            forName: .dictatorLearnedTermsChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            self?.pushLearningSnapshotToEngine()
+            if let canonical = notification.userInfo?["activatedCanonical"] as? String {
+                self?.statusBarController.showTransientStatus(
+                    "Naučil jsem se: \(canonical)",
+                    duration: 4
+                )
+            }
+        }
+
         wireHotkeys()
         observeAppState()
 
@@ -78,9 +89,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusBarController.onToggleDictation = { [weak self] in self?.toggleMenuDictation() }
         statusBarController.onTestTranscription = { [weak self] in self?.toggleTranscriptionTest() }
         statusBarController.onShowLastTranscription = { [weak self] in self?.showLastTranscription() }
+        statusBarController.onOpenLearnedTerms = { [weak self] in self?.showLearnedTermsWindow() }
         launchWindowController?.onRetry = { [weak self] in self?.startStartupTask() }
         launchWindowController?.onRetryInsert = { [weak self] text in
             self?.retryInsert(text: text)
+        }
+
+        // Bootstrap learning + persistence + audio housekeeping. Pořadí důležité:
+        // 1) Inicializuj LearningEngine (zkonzumuje legacy slovník při prvním běhu).
+        // 2) Načti historii z disku, ať uživatel po restartu uvidí předchozí přepisy.
+        // 3) Pošli aktivní slovník do TranscriptionEngine ještě před prvním přepisem.
+        _ = LearningEngine.shared
+        transcriptionHistory = HistoryStore.load()
+        pushTranscriptionHistoryToPanels()
+        pushLearningSnapshotToEngine()
+        AudioCache.purgeStale()
+        audioCachePurgeTimer = Timer.scheduledTimer(withTimeInterval: 600, repeats: true) { _ in
+            AudioCache.purgeStale()
         }
 
         startStartupTask()
@@ -88,6 +113,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         startupTask?.cancel()
+        historySaveTimer?.invalidate()
+        audioCachePurgeTimer?.invalidate()
+        HistoryStore.save(transcriptionHistory)
         Task { await audioRecorder.cancelRecording() }
     }
 
@@ -328,20 +356,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
                 return
             }
-            defer { try? FileManager.default.removeItem(at: capture.url) }
-
             await MainActor.run { [weak self] in
                 self?.stateMachine.transition(to: .transcribing)
             }
 
             do {
-                let text = try await transcriptionEngine.transcribe(
+                let raw = try await transcriptionEngine.transcribe(
                     audioURL: capture.url,
                     peakRMS: capture.peakRMS
                 )
-                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
-                if trimmed.isEmpty {
+                if raw.rawText.isEmpty {
+                    try? FileManager.default.removeItem(at: capture.url)
                     await handleTranscriptionFailure(
                         trigger: trigger,
                         message: "Nic se nepřepsalo — zkuste mluvit hlasitěji a déle."
@@ -349,7 +375,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     return
                 }
 
-                DiagnosticsLogger.log("Transcription done (\(trigger)); len=\(trimmed.count)")
+                // Aplikuj per-token replacement s tracking → finální slova (s originalText kde proběhla náhrada).
+                let activeVocab = await MainActor.run { LearningEngine.shared.currentActiveVocabulary() }
+                let replacedWords = activeVocab.applyReplacementsWithTracking(to: raw.words)
+                let finalText = replacedWords.map(\.text).joined(separator: " ")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+
+                if finalText.isEmpty {
+                    try? FileManager.default.removeItem(at: capture.url)
+                    await handleTranscriptionFailure(
+                        trigger: trigger,
+                        message: "Nic se nepřepsalo — zkuste mluvit hlasitěji a déle."
+                    )
+                    return
+                }
+
+                let entryID = UUID()
+                let cachedAudioURL = AudioCache.store(audioURL: capture.url, entryID: entryID)
+                if cachedAudioURL == nil {
+                    try? FileManager.default.removeItem(at: capture.url)
+                }
+
+                let entry = TranscriptionHistoryEntry(
+                    id: entryID,
+                    recordedAt: Date(),
+                    text: finalText,
+                    words: replacedWords,
+                    audioCacheURL: cachedAudioURL,
+                    targetAppBundleID: targetApp?.bundleIdentifier
+                )
+
+                DiagnosticsLogger.log("Transcription done (\(trigger)); len=\(finalText.count), words=\(replacedWords.count)")
 
                 if trigger == "test" {
                     await MainActor.run { [weak self] in
@@ -357,27 +413,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         self.transcriptionTestMode = false
                         self.stateMachine.transition(to: .idle)
                     }
-                    self.showTranscriptionTestAlert(text: trimmed, errorMessage: nil)
+                    self.showTranscriptionTestAlert(text: finalText, errorMessage: nil)
                     return
                 }
 
                 await MainActor.run { [weak self] in
                     guard let self else { return }
-                    self.publishLastTranscription(trimmed)
+                    self.publishLastTranscription(entry)
+                    LearningEngine.shared.observeTranscriptionDone(entry: entry)
+                    self.checkForRetryAndObserve(entry: entry)
                     self.stateMachine.transition(to: .injecting)
                     self.recordingOverlay.hide()
                 }
 
-                let injectResult = await pasteWithWatchdog(text: trimmed, into: targetApp, trigger: trigger)
+                let injectResult = await pasteWithWatchdog(text: finalText, into: targetApp, trigger: trigger)
                 await MainActor.run { [weak self] in
                     self?.stateMachine.transition(to: .idle)
                     self?.finalizeInjectUI(injectResult, trigger: trigger)
                 }
             } catch let error as TranscriptionError {
+                try? FileManager.default.removeItem(at: capture.url)
                 let message = transcriptionFailureMessage(for: error)
                 DiagnosticsLogger.log("Transcription failed (\(trigger)): \(message)")
                 await handleTranscriptionFailure(trigger: trigger, message: message)
             } catch {
+                try? FileManager.default.removeItem(at: capture.url)
                 logger.error("Transcription failed: \(error.localizedDescription, privacy: .public)")
                 DiagnosticsLogger.log("Transcription failed (\(trigger)): \(error.localizedDescription)")
                 await handleTranscriptionFailure(
@@ -416,20 +476,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func publishLastTranscription(_ text: String) {
-        lastTranscriptionText = text
-        transcriptionHistory.insert(
-            TranscriptionHistoryEntry(recordedAt: Date(), text: text),
-            at: 0
-        )
+    private func publishLastTranscription(_ entry: TranscriptionHistoryEntry) {
+        lastTranscriptionText = entry.text
+        transcriptionHistory.insert(entry, at: 0)
         if transcriptionHistory.count > maxTranscriptionHistoryCount {
             transcriptionHistory.removeSubrange(maxTranscriptionHistoryCount ..< transcriptionHistory.count)
         }
+        scheduleHistoryPersist()
         pushTranscriptionHistoryToPanels()
     }
 
     private func pushTranscriptionHistoryToPanels() {
         launchWindowController?.setTranscriptionHistory(transcriptionHistory)
+    }
+
+    private func scheduleHistoryPersist() {
+        historySaveTimer?.invalidate()
+        let snapshot = transcriptionHistory
+        historySaveTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { _ in
+            HistoryStore.save(snapshot)
+        }
+    }
+
+    private func pushLearningSnapshotToEngine() {
+        let snapshot = LearningEngine.shared.currentActiveVocabulary()
+        Task { [weak self] in
+            await self?.transcriptionEngine.applyVocabulary(snapshot)
+        }
+    }
+
+    /// Pokud poslední přepis proběhl <8 s a vypadá jako retry předchozího, předáme dvojici
+    /// `LearningEngine.observeRetry` — ten může zapsat pending kandidáta varianta→canonical.
+    private func checkForRetryAndObserve(entry: TranscriptionHistoryEntry) {
+        if let last = lastDictation,
+           Date().timeIntervalSince(last.recordedAt) <= retryWindow {
+            LearningEngine.shared.observeRetry(previous: last.entry, current: entry)
+        }
+        lastDictation = (entry: entry, recordedAt: Date())
     }
 
     private func showLastTranscription() {
@@ -526,6 +609,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func showLearnedTermsWindow() {
+        if learnedTermsWindowController == nil {
+            learnedTermsWindowController = LearnedTermsWindowController()
+        }
+        learnedTermsWindowController?.showWindow(nil)
+    }
+
     private func showCurrentSetupWindow() {
         showPermissionsWindow()
     }
@@ -535,6 +625,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let controller = PermissionsWindowController()
         controller.onPermissionsGranted = { [weak self] in
             self?.permissionsWindowController = nil
+            _ = self?.hotkeyManager.install()
             self?.startStartupTask()
         }
         permissionsWindowController = controller

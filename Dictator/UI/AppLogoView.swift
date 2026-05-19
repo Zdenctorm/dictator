@@ -1,6 +1,25 @@
 import Cocoa
 
 final class AppLogoView: NSView {
+    override func awakeFromNib() {
+        super.awakeFromNib()
+        configureAccessibility()
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        configureAccessibility()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        configureAccessibility()
+    }
+
+    private func configureAccessibility() {
+        AccessibilitySupport.configure(self, label: "Logo Dictator", role: .image)
+    }
+
     override var intrinsicContentSize: NSSize {
         NSSize(width: 64, height: 64)
     }

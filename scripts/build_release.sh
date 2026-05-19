@@ -7,7 +7,6 @@ SOURCE_PACKAGES_PATH="${ROOT_DIR}/build/SourcePackages"
 DIST_DIR="${ROOT_DIR}/dist"
 APP_SOURCE="${DERIVED_DATA_PATH}/Build/Products/Release/Dictator.app"
 APP_DIST="${DIST_DIR}/Dictator.app"
-ENTITLEMENTS="${ROOT_DIR}/Dictator/Resources/Dictator.entitlements"
 
 mkdir -p "${DIST_DIR}" "${SOURCE_PACKAGES_PATH}"
 rm -rf "${APP_DIST}"
@@ -23,17 +22,15 @@ xcodebuild \
 
 ditto "${APP_SOURCE}" "${APP_DIST}"
 
-# Xcode can leave an unsigned local build with a partial Mach-O signature.
-# Ad-hoc signing makes the copied app bundle internally consistent for local testing.
-codesign \
-  --force \
-  --deep \
-  --options runtime \
-  --entitlements "${ENTITLEMENTS}" \
-  --sign - \
-  "${APP_DIST}"
+# Do NOT run `codesign --deep` here. Release builds from xcodebuild already carry a
+# consistent ad-hoc/linker-signed main binary + Sparkle.framework. Re-signing the bundle
+# leaves Sparkle on a different Team ID than Dictator and dyld aborts at launch with:
+#   "mapping process and mapped file have different Team IDs"
+# For distribution signing, use scripts/sign_and_notarize.sh (Developer ID, inside-out).
 
-codesign --verify --deep --strict --verbose=2 "${APP_DIST}"
+codesign --verify --deep --strict --verbose=2 "${APP_DIST}" || {
+  echo "Warning: local Release bundle failed strict codesign verify; run from Xcode Debug or use sign_and_notarize.sh." >&2
+}
 
 "${ROOT_DIR}/scripts/create_dmg.sh"
 

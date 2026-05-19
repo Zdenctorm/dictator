@@ -16,10 +16,12 @@ final class RecordingOverlayController {
     private var panel: NSPanel?
     private let statusLabel = NSTextField(labelWithString: "")
     private let dotView = NSView()
+    private let statusRow = NSStackView()
     private var pulseTimer: Timer?
     private var currentMode: RecordingOverlayMode = .hidden
     private var lastSyncedState: DictatorState = .idle
     private var hideDelayTimer: Timer?
+    private var lastAnnouncedMode: RecordingOverlayMode?
 
     func show(_ mode: RecordingOverlayMode) {
         guard mode != .hidden else {
@@ -61,7 +63,6 @@ final class RecordingOverlayController {
             cancelHideDelay()
             show(.injecting)
         case .idle:
-            // Just finished injecting? Linger briefly on success before hiding.
             if previous == .injecting, !rightOptionHeld {
                 show(.injectionSuccess)
                 scheduleHide(after: 0.7)
@@ -82,14 +83,14 @@ final class RecordingOverlayController {
         case .modelDownloading, .modelLoading, .launching:
             cancelHideDelay()
             if rightOptionHeld {
-                show(.busy("Počkejte — připravuji model"))
+                show(.busy("Počkej — připravuji model"))
             } else {
                 hide()
             }
         case .permissionsNeeded:
             cancelHideDelay()
             if rightOptionHeld {
-                show(.busy("Nejdřív dokončete nastavení oprávnění"))
+                show(.busy("Nejdřív dokonči nastavení oprávnění"))
             } else {
                 hide()
             }
@@ -125,6 +126,7 @@ final class RecordingOverlayController {
         panel.hidesOnDeactivate = false
         panel.isFloatingPanel = true
         panel.becomesKeyOnlyIfNeeded = false
+        panel.setAccessibilityTitle("Stav diktování")
 
         let container = NSVisualEffectView()
         container.material = .hudWindow
@@ -137,6 +139,7 @@ final class RecordingOverlayController {
         dotView.wantsLayer = true
         dotView.layer?.cornerRadius = 5
         dotView.translatesAutoresizingMaskIntoConstraints = false
+        AccessibilitySupport.configure(dotView, label: "", hidden: true)
         NSLayoutConstraint.activate([
             dotView.widthAnchor.constraint(equalToConstant: 10),
             dotView.heightAnchor.constraint(equalToConstant: 10)
@@ -146,16 +149,24 @@ final class RecordingOverlayController {
         statusLabel.textColor = AppTheme.Color.title
         statusLabel.lineBreakMode = .byTruncatingTail
         statusLabel.maximumNumberOfLines = 2
+        statusLabel.setAccessibilityElement(false)
 
-        let row = NSStackView(views: [dotView, statusLabel])
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.spacing = 10
-        row.translatesAutoresizingMaskIntoConstraints = false
+        statusRow.orientation = .horizontal
+        statusRow.alignment = .centerY
+        statusRow.spacing = 10
+        statusRow.translatesAutoresizingMaskIntoConstraints = false
+        statusRow.addArrangedSubview(dotView)
+        statusRow.addArrangedSubview(statusLabel)
+        AccessibilitySupport.configure(
+            statusRow,
+            label: "Stav diktování",
+            help: "Ukazuje, jestli Dictator nahrává, přepisuje nebo vkládá text.",
+            role: .group
+        )
 
         let root = NSView()
         root.addSubview(container)
-        container.addSubview(row)
+        container.addSubview(statusRow)
         panel.contentView = root
 
         NSLayoutConstraint.activate([
@@ -164,18 +175,26 @@ final class RecordingOverlayController {
             container.topAnchor.constraint(equalTo: root.topAnchor),
             container.bottomAnchor.constraint(equalTo: root.bottomAnchor),
 
-            row.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16),
-            row.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -16),
-            row.topAnchor.constraint(equalTo: container.topAnchor, constant: 12),
-            row.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -12)
+            statusRow.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16),
+            statusRow.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -16),
+            statusRow.topAnchor.constraint(equalTo: container.topAnchor, constant: 12),
+            statusRow.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -12)
         ])
 
         self.panel = panel
         positionPanel()
     }
 
+    private func targetScreen() -> NSScreen? {
+        let point = NSEvent.mouseLocation
+        if let screen = NSScreen.screens.first(where: { $0.frame.contains(point) }) {
+            return screen
+        }
+        return NSScreen.main
+    }
+
     private func positionPanel() {
-        guard let panel, let screen = NSScreen.main else { return }
+        guard let panel, let screen = targetScreen() else { return }
         let frame = panel.frame
         let x = screen.frame.midX - frame.width / 2
         let y = screen.visibleFrame.maxY - frame.height - 12
@@ -203,11 +222,23 @@ final class RecordingOverlayController {
             statusLabel.stringValue = message
             dotView.layer?.backgroundColor = AppTheme.Color.warning.cgColor
         case .wrongKey:
-            statusLabel.stringValue = "To je levý Option — drž pravý"
+            statusLabel.stringValue = "Špatná klávesa — drž \(HotkeyPreference.current.hintLabel)"
             dotView.layer?.backgroundColor = AppTheme.Color.warning.cgColor
         case .hidden:
             break
         }
+
+        let label = mode.accessibilityLabel
+        if !label.isEmpty {
+            statusRow.setAccessibilityLabel(label)
+            statusRow.setAccessibilityValue(label)
+        }
+
+        if mode.shouldAnnounce, lastAnnouncedMode != mode {
+            lastAnnouncedMode = mode
+            AccessibilitySupport.announce(label)
+        }
+
         positionPanel()
     }
 
@@ -216,11 +247,14 @@ final class RecordingOverlayController {
         pulseTimer = nil
         guard mode == .keyHeld || mode == .recording else { return }
 
+        let recording = AppTheme.Color.recording
         var bright = true
         pulseTimer = Timer.scheduledTimer(withTimeInterval: 0.45, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 bright.toggle()
-                self?.dotView.layer?.backgroundColor = (bright ? NSColor.systemRed : NSColor.systemRed.withAlphaComponent(0.35)).cgColor
+                self?.dotView.layer?.backgroundColor = (
+                    bright ? recording : recording.withAlphaComponent(0.35)
+                ).cgColor
             }
         }
     }

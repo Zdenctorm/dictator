@@ -57,10 +57,6 @@ enum TranscriptionSanitizer {
 
 // MARK: - Vocabulary
 
-extension Notification.Name {
-    static let dictatorVocabularyChanged = Notification.Name("DictatorVocabularyChanged")
-}
-
 /// Jeden záznam slovníku: kanonická forma + volitelné fonetické varianty.
 /// `MyCompany: maj company, my company` → canonical="MyCompany", variants=["maj company", "my company"]
 /// `KYC` (bez dvojtečky) → canonical="KYC", variants=[] (jde jen do promptu).
@@ -132,6 +128,62 @@ struct VocabularyDictionary: Sendable {
             prompt = next
         }
         return prompt
+    }
+
+    /// Per-token varianta `applyReplacements`. Bere sekvenci `WordToken` (z `TranscriptionEngine`)
+    /// a vrací novou sekvenci, kde tokeny odpovídající variantě jsou zfúzované do jednoho
+    /// `WordToken` s kanonickou formou a vyplněným `originalText` (pro UI tooltip).
+    ///
+    /// Match je word-by-word case + diakritika insensitive. Vícevariantní matche (např. „any coin"
+    /// → „Anycoin") konzumují víc tokenů, ale produkují jeden výsledný token s kanonickou formou.
+    func applyReplacementsWithTracking(to words: [WordToken]) -> [WordToken] {
+        guard !entries.isEmpty, !words.isEmpty else { return words }
+
+        var result: [WordToken] = []
+        var i = 0
+        while i < words.count {
+            var matched = false
+            for entry in entries where !entry.variants.isEmpty {
+                for variant in entry.variants {
+                    let variantWords = variant
+                        .split(whereSeparator: { $0.isWhitespace })
+                        .map(String.init)
+                    guard !variantWords.isEmpty,
+                          i + variantWords.count <= words.count else { continue }
+
+                    let slice = Array(words[i ..< (i + variantWords.count)])
+                    guard VocabularyDictionary.wordsMatch(slice, variant: variantWords) else { continue }
+
+                    let originalText = slice.map(\.text).joined(separator: " ")
+                    let canonical = caseAdjustedCanonical(entry.canonical, original: originalText)
+                    let avgConfidence = slice.map(\.confidence).reduce(0, +) / Float(slice.count)
+                    result.append(WordToken(text: canonical, confidence: avgConfidence, originalText: originalText))
+                    DiagnosticsLogger.log("Vocabulary: replaced \"\(originalText)\" → \"\(canonical)\"")
+                    i += variantWords.count
+                    matched = true
+                    break
+                }
+                if matched { break }
+            }
+            if !matched {
+                result.append(words[i])
+                i += 1
+            }
+        }
+        return result
+    }
+
+    private static func wordsMatch(_ candidate: [WordToken], variant: [String]) -> Bool {
+        guard candidate.count == variant.count else { return false }
+        for (token, variantWord) in zip(candidate, variant) {
+            let normalizedToken = token.text
+                .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+                .trimmingCharacters(in: .punctuationCharacters)
+            let normalizedVariant = variantWord
+                .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            if normalizedToken != normalizedVariant { return false }
+        }
+        return true
     }
 
     /// Nahradí každou nalezenou variantu kanonickou formou. Word-boundary aware,
@@ -207,12 +259,11 @@ struct VocabularyDictionary: Sendable {
     }
 }
 
-/// Persistence + seed slovníku. Stejný vzor jako `HotkeyPreference`.
+/// Legacy UserDefaults klíč a výchozí seed — jen pro jednorázovou migraci do `LearningEngine`.
 enum VocabularyStore {
-    private static let storageKey = "vocabularyRawText"
-    private static let seedFlagKey = "vocabularySeeded.v1"
+    private static let legacyStorageKey = "vocabularyRawText"
 
-    /// Defaultní slovník nasazený při prvním spuštění. Uživatel ho může libovolně editovat.
+    /// Výchozí seed pro migraci při prvním spuštění s `LearningEngine`.
     static let defaultSeedText: String = """
     # Slovník Dictatoru — jeden termín na řádek.
     # „Kanonický: varianta1, varianta2" → po přepisu se varianty přepíšou na kanonický tvar.
@@ -235,36 +286,15 @@ enum VocabularyStore {
     board
     """
 
-    /// Vrátí aktuální obsah slovníku. Při prvním spuštění nasadí seed.
-    static var currentRawText: String {
-        get {
-            // První spuštění — nasaď seed jen jednou, pak ho nikdy nepřepisuj.
-            if !UserDefaults.standard.bool(forKey: seedFlagKey) {
-                UserDefaults.standard.set(defaultSeedText, forKey: storageKey)
-                UserDefaults.standard.set(true, forKey: seedFlagKey)
-                DiagnosticsLogger.log("Vocabulary: seeded default dictionary on first launch")
-                return defaultSeedText
-            }
-            return UserDefaults.standard.string(forKey: storageKey) ?? ""
-        }
-        set {
-            UserDefaults.standard.set(newValue, forKey: storageKey)
-            UserDefaults.standard.set(true, forKey: seedFlagKey)
-            NotificationCenter.default.post(name: .dictatorVocabularyChanged, object: nil)
-            DiagnosticsLogger.log("Vocabulary: user saved \(newValue.count) chars")
-        }
+    /// Jednorázový zdroj pro `LearningEngine` při bootstrapu.
+    static func legacyRawTextForMigration() -> String {
+        let stored = UserDefaults.standard.string(forKey: legacyStorageKey) ?? ""
+        return stored.isEmpty ? defaultSeedText : stored
     }
 
-    /// Vrátí parsovaný `VocabularyDictionary` pro aktuální obsah.
-    static var current: VocabularyDictionary {
-        VocabularyDictionary(rawText: currentRawText)
-    }
-
-    /// Vynutí reload seed textu (pro „Obnovit výchozí" button).
-    static func resetToDefault() {
-        UserDefaults.standard.set(defaultSeedText, forKey: storageKey)
-        UserDefaults.standard.set(true, forKey: seedFlagKey)
-        NotificationCenter.default.post(name: .dictatorVocabularyChanged, object: nil)
-        DiagnosticsLogger.log("Vocabulary: reset to default")
+    /// Smaže staré UserDefaults klíče po úspěšné migraci do `LearningEngine`.
+    static func clearLegacyStorage() {
+        UserDefaults.standard.removeObject(forKey: legacyStorageKey)
+        UserDefaults.standard.removeObject(forKey: "vocabularySeeded.v1")
     }
 }

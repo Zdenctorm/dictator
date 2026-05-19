@@ -84,6 +84,8 @@ enum AppTheme {
         field.isSelectable = false
         field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         field.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        AccessibilitySupport.configure(field, label: text)
+        field.setAccessibilityRole(.staticText)
         return field
     }
 
@@ -91,6 +93,7 @@ enum AppTheme {
         let button = NSButton(title: title, target: target, action: action)
         button.bezelStyle = .rounded
         button.controlSize = .large
+        AccessibilitySupport.configure(button, label: title)
         return button
     }
 
@@ -150,6 +153,7 @@ enum AppTheme {
     static func badge(_ text: String, color: NSColor) -> NSTextField {
         let field = label(text, font: Font.footnote, color: color)
         field.setContentHuggingPriority(.required, for: .horizontal)
+        field.setAccessibilityRole(.staticText)
         return field
     }
 

@@ -10,13 +10,13 @@ actor TranscriptionEngine {
     private let language = "cs"
     private let logger = Logger(subsystem: "com.example.dictator", category: "transcription")
 
-    /// Aktuální slovník uživatele — drží se v paměti, aby se nečetl z UserDefaults při každém přepisu.
-    /// Reload spouští `dictatorVocabularyChanged` notifikace (viz `AppDelegate`).
-    private var vocabulary: VocabularyDictionary = VocabularyStore.current
+    /// Aktivní slovník pro prompt biasing. Nastavuje `AppDelegate` snapshotem z `LearningEngine`
+    /// (přes `dictatorLearnedTermsChanged` notifikaci) — TranscriptionEngine si o data sám neříká.
+    private var vocabulary: VocabularyDictionary = .empty
 
-    func reloadVocabulary() {
-        vocabulary = VocabularyStore.current
-        DiagnosticsLogger.log("Vocabulary reloaded into TranscriptionEngine: entries=\(vocabulary.entries.count)")
+    func applyVocabulary(_ snapshot: VocabularyDictionary) {
+        vocabulary = snapshot
+        DiagnosticsLogger.log("Vocabulary applied: entries=\(snapshot.entries.count)")
     }
 
     func load(progressHandler: @escaping @Sendable (ModelDownloadProgress) -> Void) async throws {
@@ -80,7 +80,7 @@ actor TranscriptionEngine {
         }
     }
 
-    func transcribe(audioURL: URL, peakRMS: Float) async throws -> String {
+    func transcribe(audioURL: URL, peakRMS: Float) async throws -> RawTranscription {
         guard let whisperKit else { throw TranscriptionError.modelNotLoaded }
 
         DiagnosticsLogger.log("Audio file peakRMS=\(String(format: "%.4f", peakRMS))")
@@ -109,8 +109,8 @@ actor TranscriptionEngine {
         )
 
         let results = try await whisperKit.transcribe(audioPath: audioURL.path, decodeOptions: options)
-        let raw = results
-            .flatMap { (result: TranscriptionResult) in result.segments }
+        let segments = results.flatMap { (result: TranscriptionResult) in result.segments }
+        let raw = segments
             .map { (segment: TranscriptionSegment) in segment.text }
             .joined(separator: " ")
             .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
@@ -122,11 +122,58 @@ actor TranscriptionEngine {
             throw TranscriptionError.hallucinatedTranscript(raw)
         }
 
-        let replaced = vocabulary.applyReplacements(to: sanitized)
-        if replaced != sanitized {
-            DiagnosticsLogger.log("Transcription post-processed by vocabulary")
+        let words = TranscriptionEngine.extractWordTokens(from: segments, fallbackText: sanitized)
+        let duration = segments.last.map { Float($0.end) } ?? 0
+
+        return RawTranscription(rawText: sanitized, words: words, durationSeconds: duration)
+    }
+
+    /// Mapuje WhisperKit `TranscriptionSegment.words` (s `WordTiming.probability`) na naše
+    /// `WordToken`. Pokud `segment.words` je `nil` (Whisper word-timestamp alignment selhal),
+    /// použijeme fallback: rozsekat `segment.text` po whitespace a každému slovu přiřadit
+    /// confidence ze segmentového `avgLogprob`.
+    private static func extractWordTokens(
+        from segments: [TranscriptionSegment],
+        fallbackText: String
+    ) -> [WordToken] {
+        var tokens: [WordToken] = []
+        var hasAnyWordTiming = false
+
+        for segment in segments {
+            if let words = segment.words, !words.isEmpty {
+                hasAnyWordTiming = true
+                for timing in words {
+                    let trimmed = timing.word.trimmingCharacters(in: .whitespaces)
+                    guard !trimmed.isEmpty else { continue }
+                    let probability = max(0, min(1, timing.probability))
+                    tokens.append(WordToken(text: trimmed, confidence: probability))
+                }
+            } else {
+                let segmentConfidence = max(0, min(1, Foundation.exp(segment.avgLogprob)))
+                let pieces = segment.text
+                    .split(whereSeparator: { $0.isWhitespace })
+                    .map(String.init)
+                for piece in pieces {
+                    let trimmed = piece.trimmingCharacters(in: .punctuationCharacters)
+                    guard !trimmed.isEmpty else { continue }
+                    tokens.append(WordToken(text: trimmed, confidence: segmentConfidence))
+                }
+            }
         }
-        return replaced
+
+        if !hasAnyWordTiming && tokens.isEmpty {
+            // Worst case: žádné segmenty s textem. Rozsekáme sanitizovaný fallback s neutrální confidence.
+            let pieces = fallbackText
+                .split(whereSeparator: { $0.isWhitespace })
+                .map(String.init)
+            for piece in pieces {
+                let trimmed = piece.trimmingCharacters(in: .punctuationCharacters)
+                guard !trimmed.isEmpty else { continue }
+                tokens.append(WordToken(text: trimmed, confidence: 0.5))
+            }
+        }
+
+        return tokens
     }
 
     /// Tokenizuje aktuální slovník pro WhisperKit `DecodingOptions.promptTokens`. Vrátí `nil`,
@@ -227,6 +274,16 @@ private enum ModelDownloadMonitor {
         }
         return total
     }
+}
+
+/// Výstup `TranscriptionEngine.transcribe`. Text už prošel sanitizací (filtr halucinací ticha),
+/// ale ne post-process replacement ze slovníku — ten aplikuje volající (AppDelegate) pomocí
+/// `VocabularyDictionary.applyReplacementsWithTracking(to:)`, aby si zachoval `originalText`
+/// pro UI tooltipy.
+struct RawTranscription {
+    let rawText: String
+    let words: [WordToken]
+    let durationSeconds: Float
 }
 
 enum TranscriptionError: LocalizedError {

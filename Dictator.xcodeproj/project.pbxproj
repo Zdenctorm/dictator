@@ -33,6 +33,12 @@
 		011000000000000000000001 /* TranscriptionHistoryEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 029000000000000000000001 /* TranscriptionHistoryEntry.swift */; };
 		010000000000000000000017 /* PasteInsertionPlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001B /* PasteInsertionPlanTests.swift */; };
 		010000000000000000000018 /* TranscriptionSanitizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001C /* TranscriptionSanitizerTests.swift */; };
+		010000000000000000000019 /* LearningEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001D /* LearningEngine.swift */; };
+    01000000000000000000001B /* PersistentStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001E /* PersistentStorage.swift */; };
+		01000000000000000000001C /* WordCorrectionPopoverController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001F /* WordCorrectionPopoverController.swift */; };
+		010000000000000000000021 /* AccessibilitySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000021 /* AccessibilitySettings.swift */; };
+		010000000000000000000022 /* AccessibilitySupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000022 /* AccessibilitySupport.swift */; };
+		01000000000000000000001D /* LearnedTermsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000020 /* LearnedTermsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -65,6 +71,12 @@
 		02000000000000000000001A /* DictatorTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DictatorTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		02000000000000000000001B /* PasteInsertionPlanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteInsertionPlanTests.swift; sourceTree = "<group>"; };
 		02000000000000000000001C /* TranscriptionSanitizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionSanitizerTests.swift; sourceTree = "<group>"; };
+		02000000000000000000001D /* LearningEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearningEngine.swift; sourceTree = "<group>"; };
+    02000000000000000000001E /* PersistentStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentStorage.swift; sourceTree = "<group>"; };
+		02000000000000000000001F /* WordCorrectionPopoverController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordCorrectionPopoverController.swift; sourceTree = "<group>"; };
+		020000000000000000000021 /* AccessibilitySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilitySettings.swift; sourceTree = "<group>"; };
+		020000000000000000000022 /* AccessibilitySupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilitySupport.swift; sourceTree = "<group>"; };
+		020000000000000000000020 /* LearnedTermsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearnedTermsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -129,7 +141,10 @@
 				020000000000000000000012 /* DiagnosticsLogger.swift */,
 				020000000000000000000015 /* TranscriptionSanitizer.swift */,
 				029000000000000000000001 /* TranscriptionHistoryEntry.swift */,
-				020000000000000000000016 /* AudioLevelAnalyzer.swift */,
+				02000000000000000000001D /* LearningEngine.swift */,
+        02000000000000000000001E /* PersistentStorage.swift */,
+		020000000000000000000021 /* AccessibilitySettings.swift */,
+		020000000000000000000016 /* AudioLevelAnalyzer.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -138,6 +153,7 @@
 			isa = PBXGroup;
 			children = (
 				02000000000000000000000D /* AppTheme.swift */,
+				020000000000000000000022 /* AccessibilitySupport.swift */,
 				020000000000000000000010 /* AppLogoView.swift */,
 				020000000000000000000007 /* StatusBarController.swift */,
 				020000000000000000000008 /* PermissionsWindowController.swift */,
@@ -146,6 +162,8 @@
 				020000000000000000000014 /* TranscriptionPanelView.swift */,
 				020000000000000000000017 /* AppWindowPresenter.swift */,
 				020000000000000000000018 /* ScrollContentLayout.swift */,
+				02000000000000000000001F /* WordCorrectionPopoverController.swift */,
+				020000000000000000000020 /* LearnedTermsView.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -307,6 +325,7 @@
 				010000000000000000000008 /* PermissionsWindowController.swift in Sources */,
 				01000000000000000000000A /* LaunchWindowController.swift in Sources */,
 				01000000000000000000000B /* AppTheme.swift in Sources */,
+				010000000000000000000022 /* AccessibilitySupport.swift in Sources */,
 				01000000000000000000000D /* AppLogoView.swift in Sources */,
 				010000000000000000000010 /* RecordingOverlayController.swift in Sources */,
 				010000000000000000000011 /* TranscriptionPanelView.swift in Sources */,
@@ -316,6 +335,11 @@
 				010000000000000000000015 /* ScrollContentLayout.swift in Sources */,
 				010000000000000000000016 /* PasteInsertionPlan.swift in Sources */,
 				011000000000000000000001 /* TranscriptionHistoryEntry.swift in Sources */,
+				010000000000000000000019 /* LearningEngine.swift in Sources */,
+				01000000000000000000001B /* PersistentStorage.swift in Sources */,
+				010000000000000000000021 /* AccessibilitySettings.swift in Sources */,
+				01000000000000000000001C /* WordCorrectionPopoverController.swift in Sources */,
+				01000000000000000000001D /* LearnedTermsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
