@@ -159,16 +159,9 @@ Aplikace má jen dvě:
 
 ---
 
-## Roadmap (návrhy do diskuse)
+## Roadmap
 
-- [ ] **Post-process velikost písmen**: normalizovat ALL-CAPS slova mimo whitelist (KYC, AML, …) na lowercase
-- [ ] **Backup + restore schránky** kolem Cmd+V — neztratit uživatelův obsah
-- [ ] **Smart leading space** při paste doprostřed věty
-- [ ] **Punctuation commands** („tečka", „nový odstavec") — power user feature
-- [ ] **HUD error feedback** při selhání injection
-- [x] **Sparkle auto-update** framework
-- [ ] **Apple Developer certifikát + notarizace** pro distribuci bez Gatekeeper warning
-- [ ] Volitelně: English a Slovak jazyková podpora
+Kompletní produktová roadmapa (hotové, P0–P3, backlog, anti-cíle): **[ROADMAP.md](./ROADMAP.md)**.
 
 ---
 
