@@ -62,6 +62,16 @@ final class AppStateMachine: ObservableObject {
     var isRecording: Bool { state == .recording }
     var isReady: Bool { state == .idle }
 
+    /// Diktování lze spustit i během stahování/načítání modelu — přepis počká na model na konci.
+    var canStartDictation: Bool {
+        switch state {
+        case .idle, .modelDownloading, .modelLoading:
+            return true
+        default:
+            return false
+        }
+    }
+
     var blocksDictation: Bool {
         switch state {
         case .injecting, .transcribing, .modelLoading, .launching:

@@ -76,6 +76,14 @@ final class HotkeyManager {
     private var lastAccessibilityTrustedSeen: Bool = false
     /// Zabráníme rekurzivní rekonstrukci tapu z více míst najednou.
     private var isRebuildingTap = false
+    /// macOS může krátce hlásit `tapIsEnabled == false` i u živého listen-only tapu; bez cooldownu
+    /// health check tap každé 2 s zničí a znovu vytvoří → crossapp Option přestane fungovat.
+    private var lastRebuildAt: Date = .distantPast
+    private var lastCrossAppPrepAt: Date = .distantPast
+    private var pendingUserInputRebuild: DispatchWorkItem?
+    private let minRebuildInterval: TimeInterval = 12
+    private let crossAppPrepInterval: TimeInterval = 3
+    private let healthCheckInterval: TimeInterval = 5
     private let logger = Logger(subsystem: "com.example.dictator", category: "hotkey")
 
     private static let rightCommandKeyCode: CGKeyCode = 54
@@ -146,6 +154,24 @@ final class HotkeyManager {
         return true
     }
 
+    /// Po přepnutí do cizí appky (Cursor, Slack…) obnoví doručování Option — bez agresivní smyčky rebuildů.
+    func prepareForCrossAppUse() {
+        guard AccessibilitySettings.isTrusted() else { return }
+
+        if eventTap == nil {
+            _ = install()
+            return
+        }
+
+        guard let tap = eventTap else { return }
+        CGEvent.tapEnable(tap: tap, enable: true)
+
+        let now = Date()
+        guard now.timeIntervalSince(lastCrossAppPrepAt) >= crossAppPrepInterval else { return }
+        lastCrossAppPrepAt = now
+        rebuildTap(reason: "cross-app foreground", force: false)
+    }
+
     /// Vytvoří nový event tap a zaregistruje jeho run-loop source. Voláme i pro rebuild.
     @discardableResult
     private func createTap() -> Bool {
@@ -191,11 +217,19 @@ final class HotkeyManager {
     /// 1. Accessibility se právě přepnula na true (poprvé grantována nebo re-grantována po rebuilu binárky)
     /// 2. Tap odmítl události po `tapDisabledByUserInput` a re-enable nepomohl
     /// 3. Dlouho nepřišel žádný event, ačkoli uživatel typuje (silent death)
-    fileprivate func rebuildTap(reason: String) {
+    fileprivate func rebuildTap(reason: String, force: Bool = false) {
         guard !isRebuildingTap else { return }
+
+        let now = Date()
+        if !force, now.timeIntervalSince(lastRebuildAt) < minRebuildInterval {
+            DiagnosticsLogger.log("Hotkey tap rebuild skipped (cooldown): \(reason)")
+            return
+        }
+
         isRebuildingTap = true
         defer { isRebuildingTap = false }
 
+        lastRebuildAt = now
         DiagnosticsLogger.log("Hotkey tap rebuild: \(reason)")
         let trusted = AXIsProcessTrusted()
         lastAccessibilityTrustedSeen = trusted
@@ -225,6 +259,11 @@ final class HotkeyManager {
         // s realitou — typicky se po rebuilu binárky XCodeem AXIsProcessTrusted začne vracet
         // jiné výsledky než kernelové ACL.
         ensureTapAliveAfterFocusChange(reason: "workspace app switch")
+
+        if let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+           app.bundleIdentifier != Bundle.main.bundleIdentifier {
+            prepareForCrossAppUse()
+        }
     }
 
     private func ensureTapAliveAfterFocusChange(reason: String) {
@@ -234,28 +273,35 @@ final class HotkeyManager {
         if trusted != lastAccessibilityTrustedSeen {
             lastAccessibilityTrustedSeen = trusted
             if trusted {
-                rebuildTap(reason: "AXTrusted flipped to true (\(reason))")
+                rebuildTap(reason: "AXTrusted flipped to true (\(reason))", force: true)
             }
             return
         }
 
         guard trusted else { return }
         guard let tap = eventTap else {
-            rebuildTap(reason: "no tap exists (\(reason))")
+            rebuildTap(reason: "no tap exists (\(reason))", force: true)
             return
         }
-        // Pokud tap není enabled, zkusíme nejdřív lehkou cestu. Když to nepomůže, rebuild.
+        // Jen re-enable — `tapIsEnabled` není spolehlivý signál pro rebuild (viz health check).
         if !CGEvent.tapIsEnabled(tap: tap) {
             CGEvent.tapEnable(tap: tap, enable: true)
-            if !CGEvent.tapIsEnabled(tap: tap) {
-                rebuildTap(reason: "tap not enabled after re-enable (\(reason))")
-            }
         }
+    }
+
+    fileprivate func scheduleRebuildAfterUserInput() {
+        pendingUserInputRebuild?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.rebuildTap(reason: "tapDisabledByUserInput")
+        }
+        pendingUserInputRebuild = work
+        // Krátká prodleva: necháme macOS dokončit flagsChanged z cizí appky (Cursor, terminál).
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
     }
 
     private func startHealthCheck() {
         healthTimer?.invalidate()
-        healthTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+        healthTimer = Timer.scheduledTimer(withTimeInterval: healthCheckInterval, repeats: true) { [weak self] _ in
             self?.performHealthCheck()
         }
     }
@@ -267,20 +313,16 @@ final class HotkeyManager {
         if trusted != lastAccessibilityTrustedSeen {
             lastAccessibilityTrustedSeen = trusted
             if trusted {
-                rebuildTap(reason: "AXTrusted flipped to true (health check)")
+                rebuildTap(reason: "AXTrusted flipped to true (health check)", force: true)
                 return
             }
         }
 
         guard trusted, let eventTap else { return }
 
-        // Tap formálně neživý → enable, pokud i pak ne, rebuild.
+        // `tapIsEnabled` u listen-only tapu často lže; rebuildovat jen při callbacku nebo dlouhém tichu.
         if !CGEvent.tapIsEnabled(tap: eventTap) {
             CGEvent.tapEnable(tap: eventTap, enable: true)
-            if !CGEvent.tapIsEnabled(tap: eventTap) {
-                rebuildTap(reason: "tap not enabled (health check)")
-            }
-            return
         }
 
         // Tap formálně živý, ale dlouho neviděl žádný event. Když uživatel pracuje ve foreground
@@ -395,7 +437,7 @@ private func eventTapCallback(
         if let tap = manager.eventTap {
             CGEvent.tapEnable(tap: tap, enable: true)
         }
-        DispatchQueue.main.async { manager.rebuildTap(reason: "tapDisabledByUserInput") }
+        DispatchQueue.main.async { manager.scheduleRebuildAfterUserInput() }
         return Unmanaged.passUnretained(event)
     }
 

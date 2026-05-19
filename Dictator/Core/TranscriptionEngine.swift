@@ -19,6 +19,8 @@ actor TranscriptionEngine {
         DiagnosticsLogger.log("Vocabulary applied: entries=\(snapshot.entries.count)")
     }
 
+    var isLoaded: Bool { whisperKit != nil }
+
     func load(progressHandler: @escaping @Sendable (ModelDownloadProgress) -> Void) async throws {
         if whisperKit != nil {
             progressHandler(ModelDownloadProgress(

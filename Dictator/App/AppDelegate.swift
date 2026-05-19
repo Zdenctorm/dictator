@@ -34,6 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// the time the user releases Option, focus may have shifted (e.g. recording overlay, status
     /// menu, or window activation). At keyDown the user is still in their target app.
     private var pendingDictationTarget: NSRunningApplication?
+    private let dictationTargetTracker = DictationTargetTracker()
 
     private let logger = Logger(subsystem: "com.example.dictator", category: "app")
 
@@ -82,8 +83,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         wireHotkeys()
         observeAppState()
+        dictationTargetTracker.startObserving()
+
+        if PermissionsWindowController.currentSnapshot.allGranted {
+            _ = installHotkeyIfPossible()
+        }
 
         statusBarController.onQuit = { NSApp.terminate(nil) }
+        statusBarController.onMenuWillOpen = { [weak self] in
+            self?.dictationTargetTracker.snapshotForMenuAction()
+        }
         statusBarController.onOpenSetup = { [weak self] in self?.showCurrentSetupWindow() }
         statusBarController.onOpenDiagnostics = { DiagnosticsLogger.openLogDirectory() }
         statusBarController.onToggleDictation = { [weak self] in self?.toggleMenuDictation() }
@@ -153,7 +162,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .option, .leftOption:
             optionHeld = down
             if down {
-                if stateMachine.isReady {
+                if stateMachine.canStartDictation {
                     recordingOverlay.show(.keyHeld)
                 } else {
                     recordingOverlay.show(busyOverlayMode())
@@ -196,7 +205,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        guard stateMachine.isReady else {
+        guard stateMachine.canStartDictation else {
             statusBarController.showTransientStatus(busyStatusMessage(), duration: 2)
             return
         }
@@ -260,6 +269,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         stateMachine.transition(to: .modelLoading)
         stateMachine.transition(to: .idle)
+        hotkeyManager.prepareForCrossAppUse()
         DiagnosticsLogger.log("Startup completed. App is idle.")
     }
 
@@ -272,18 +282,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
+    private func ensureTranscriptionEngineReady() async throws {
+        if await transcriptionEngine.isLoaded { return }
+
+        DiagnosticsLogger.log("Transcription engine not ready — waiting for model load")
+        if let startupTask {
+            await startupTask.value
+        }
+        if await transcriptionEngine.isLoaded { return }
+
+        try await transcriptionEngine.load { [weak self] progress in
+            Task { @MainActor in
+                self?.stateMachine.transition(to: .modelDownloading(progress))
+            }
+        }
+    }
+
     private func beginDictation(trigger: String) {
-        guard stateMachine.isReady else {
+        guard stateMachine.canStartDictation else {
             DiagnosticsLogger.log("Dictation start ignored (\(trigger)): not idle (state=\(stateMachine.state.displayText))")
             statusBarController.showTransientStatus(busyStatusMessage(), duration: 2)
             recordingOverlay.show(busyOverlayMode())
             return
         }
 
-        // Capture target NOW: at this moment the user is still in their target app.
-        // Capturing at endDictation was unreliable — the recording overlay or status menu
-        // could shift focus to Dictator before user released the key.
-        pendingDictationTarget = NSWorkspace.shared.frontmostApplication
+        let menuTriggered = trigger == "menu"
+        pendingDictationTarget = dictationTargetTracker.resolveTarget(
+            atHotkeyDown: NSWorkspace.shared.frontmostApplication,
+            menuTriggered: menuTriggered
+        )
         DiagnosticsLogger.log("Dictation start (\(trigger)): target captured as \(pendingDictationTarget?.localizedName ?? "?") (\(pendingDictationTarget?.bundleIdentifier ?? "?"))")
 
         stateMachine.transition(to: .recording)
@@ -361,6 +388,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
 
             do {
+                try await ensureTranscriptionEngineReady()
                 let raw = try await transcriptionEngine.transcribe(
                     audioURL: capture.url,
                     peakRMS: capture.peakRMS
@@ -626,6 +654,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         controller.onPermissionsGranted = { [weak self] in
             self?.permissionsWindowController = nil
             _ = self?.hotkeyManager.install()
+            self?.hotkeyManager.prepareForCrossAppUse()
             self?.startStartupTask()
         }
         permissionsWindowController = controller

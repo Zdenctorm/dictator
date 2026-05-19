@@ -12,6 +12,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     var onTestTranscription: (() -> Void)?
     var onShowLastTranscription: (() -> Void)?
     var onOpenLearnedTerms: (() -> Void)?
+    var onMenuWillOpen: (() -> Void)?
 
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let stateMachine: AppStateMachine
@@ -112,6 +113,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
 
     func menuWillOpen(_ menu: NSMenu) {
+        onMenuWillOpen?()
         launchAtLoginItem.state = isLaunchAtLoginEnabled ? .on : .off
         hintMenuItem.title = "Podrž \(HotkeyPreference.current.hintLabel) a mluv"
         refreshDictationMenuItems()
@@ -136,7 +138,16 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             testTranscriptionMenuItem.title = "Ověřit přepis (ukáže text)"
             testTranscriptionMenuItem.isEnabled = true
             AccessibilitySupport.configure(testTranscriptionMenuItem, help: nil)
-        case .transcribing, .injecting, .modelDownloading, .modelLoading, .launching:
+        case .modelDownloading, .modelLoading:
+            dictationMenuItem.title = "Začít diktování (model se načítá)"
+            dictationMenuItem.isEnabled = true
+            AccessibilitySupport.configure(
+                dictationMenuItem,
+                help: "Můžeš začít mluvit hned; přepis doběhne po načtení modelu."
+            )
+            testTranscriptionMenuItem.isEnabled = false
+            AccessibilitySupport.configure(testTranscriptionMenuItem, help: disabledHelp)
+        case .transcribing, .injecting, .launching:
             dictationMenuItem.isEnabled = false
             testTranscriptionMenuItem.isEnabled = false
             AccessibilitySupport.configure(dictationMenuItem, help: disabledHelp)
