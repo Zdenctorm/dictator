@@ -458,8 +458,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     } else {
                         DiagnosticsLogger.log("Dictation (\(trigger)): history only — skipping external inject")
                         self.stateMachine.transition(to: .idle)
-                        self.launchWindowController?.setTranscriptionHistory(self.transcriptionHistory)
-                        self.launchWindowController?.focusTranscriptionPanel()
                     }
                 }
 
