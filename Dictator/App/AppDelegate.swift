@@ -299,6 +299,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func beginDictation(trigger: String) {
+        hotkeyManager.prepareForCrossAppUse()
         guard stateMachine.canStartDictation else {
             DiagnosticsLogger.log("Dictation start ignored (\(trigger)): not idle (state=\(stateMachine.state.displayText))")
             statusBarController.showTransientStatus(busyStatusMessage(), duration: 2)

@@ -4,6 +4,8 @@ import AppKit
 @MainActor
 final class DictationTargetTracker {
     private(set) var lastExternalApplication: NSRunningApplication?
+    /// Cíl zachycený při otevření menu — platí jen pro aktuální menu session.
+    private var menuSessionExternalTarget: NSRunningApplication?
     private let ownBundleID = Bundle.main.bundleIdentifier
 
     func startObserving() {

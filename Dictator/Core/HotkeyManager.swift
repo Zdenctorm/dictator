@@ -260,10 +260,8 @@ final class HotkeyManager {
         // jiné výsledky než kernelové ACL.
         ensureTapAliveAfterFocusChange(reason: "workspace app switch")
 
-        if let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
-           app.bundleIdentifier != Bundle.main.bundleIdentifier {
-            prepareForCrossAppUse()
-        }
+        // Obnovit tap i po přepnutí do Dictatoru — Option musí fungovat kdykoliv.
+        prepareForCrossAppUse()
     }
 
     private func ensureTapAliveAfterFocusChange(reason: String) {
