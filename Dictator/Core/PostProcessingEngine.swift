@@ -85,10 +85,15 @@ actor PostProcessingEngine {
 
     /// Vrátí opravený text nebo originál při selhání / timeoutu / halucinaci.
     /// Timeout je řízen volajícím přes withTaskGroup v AppDelegate.
-    func process(_ text: String) async throws -> String {
+    func process(_ text: String, targetAppBundleID: String? = nil) async throws -> String {
         guard let container else { throw PostProcessingError.notLoaded }
 
-        let session = ChatSession(container, systemPrompt: Self.systemPrompt)
+        var prompt = Self.systemPrompt
+        if let context = AppContextPostProcessingStore.instruction(for: targetAppBundleID) {
+            prompt += "\nKontext aktivní aplikace: \(context)"
+        }
+
+        let session = ChatSession(container, systemPrompt: prompt)
         let raw = try await session.respond(to: text)
 
         guard let validated = validateOutput(raw, input: text) else {

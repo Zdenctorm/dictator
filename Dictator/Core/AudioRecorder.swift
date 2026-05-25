@@ -43,11 +43,11 @@ actor AudioRecorder {
         let summary = devices.map { "\($0.localizedName)#\($0.uniqueID.prefix(8))" }.joined(separator: ", ")
         DiagnosticsLogger.log("AudioRecorder: discovery \(devices.count) devices: [\(summary)]")
 
-        guard let device = AVCaptureDevice.default(for: .audio) else {
-            DiagnosticsLogger.log("AudioRecorder: no default audio capture device available")
+        guard let device = MicrophonePreference.resolvedDevice() else {
+            DiagnosticsLogger.log("AudioRecorder: no audio capture device available")
             throw AudioRecorderError.noInputDevice
         }
-        DiagnosticsLogger.log("AudioRecorder: default capture device = \(device.localizedName) (\(device.uniqueID))")
+        DiagnosticsLogger.log("AudioRecorder: capture device = \(device.localizedName) (\(device.uniqueID))")
 
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("dictator-\(UUID().uuidString)")

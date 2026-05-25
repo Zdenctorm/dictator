@@ -60,10 +60,13 @@ final class HotkeyManager {
     var onKeyDown: (() -> Void)?
     var onKeyUp: (() -> Void)?
     var onModifierEvent: ((HotkeyKey, Bool) -> Void)?
+    var onWrongModifierHint: ((Bool) -> Void)?
+    var activationMode: DictationActivationMode = DictationActivationPreference.current
     /// Aktuální volba uživatele — přepíná, která klávesa spouští diktování.
     var preference: HotkeyChoice = .eitherOption
 
     private var isOptionDown = false
+    private var triggerPhysicallyDown = false
     fileprivate var eventTap: CFMachPort?
 
     private var runLoopSource: CFRunLoopSource?
@@ -389,19 +392,71 @@ final class HotkeyManager {
             source = "rightCommand"
         }
 
+        onWrongModifierHint?(wrongModifierActive(snap))
+
+        if activationMode == .toggle {
+            if triggerDown && !triggerPhysicallyDown {
+                triggerPhysicallyDown = true
+                if isOptionDown {
+                    isOptionDown = false
+                    DiagnosticsLogger.log("Hotkey: toggle stop (preference=\(preference.rawValue))")
+                    onModifierEvent?(.option, false)
+                    onKeyUp?()
+                } else {
+                    isOptionDown = true
+                    DiagnosticsLogger.log("Hotkey: toggle start (\(source), preference=\(preference.rawValue))")
+                    onModifierEvent?(.option, true)
+                    onKeyDown?()
+                }
+            } else if !triggerDown && triggerPhysicallyDown {
+                triggerPhysicallyDown = false
+            }
+            return
+        }
+
         if triggerDown {
+            if !triggerPhysicallyDown {
+                triggerPhysicallyDown = true
+            }
             if !isOptionDown {
                 isOptionDown = true
                 DiagnosticsLogger.log("Hotkey: trigger down (\(source), preference=\(preference.rawValue))")
                 onModifierEvent?(.option, true)
                 onKeyDown?()
             }
-        } else if isOptionDown {
-            isOptionDown = false
-            DiagnosticsLogger.log("Hotkey: trigger up (preference=\(preference.rawValue))")
-            onModifierEvent?(.option, false)
-            onKeyUp?()
+        } else {
+            if triggerPhysicallyDown {
+                triggerPhysicallyDown = false
+            }
+            if isOptionDown {
+                isOptionDown = false
+                DiagnosticsLogger.log("Hotkey: trigger up (preference=\(preference.rawValue))")
+                onModifierEvent?(.option, false)
+                onKeyUp?()
+            }
         }
+    }
+
+    private func wrongModifierActive(_ snap: ModifierSnapshot) -> Bool {
+        guard !isOptionDown else { return false }
+        switch preference {
+        case .eitherOption:
+            return false
+        case .rightOption:
+            return snap.alternateDown && snap.key58Down && !snap.key61Down
+        case .leftOption:
+            return snap.alternateDown && snap.key61Down && !snap.key58Down
+        case .rightCommand:
+            return snap.alternateDown && (snap.key58Down || snap.key61Down)
+        }
+    }
+
+    func cancelToggleSessionIfNeeded() {
+        guard activationMode == .toggle, isOptionDown else { return }
+        isOptionDown = false
+        triggerPhysicallyDown = false
+        onModifierEvent?(.option, false)
+        onKeyUp?()
     }
 }
 
