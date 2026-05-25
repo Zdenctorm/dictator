@@ -26,7 +26,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var streamingTranscriptionTask: Task<Void, Never>?
     private var stateCancellable: AnyCancellable?
     private var optionHeld = false
+    private var wrongModifierHeld = false
     private var transcriptionTestMode = false
+    private var escapeMonitor: Any?
+    private let statusBarPopover = StatusBarPopoverController()
     private var historySaveTimer: Timer?
     private var audioCachePurgeTimer: Timer?
     /// Poslední úspěšný přepis pro retry-detektor.
@@ -50,6 +53,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         postProcessingEngine = PostProcessingEngine()
         hotkeyManager = HotkeyManager()
         hotkeyManager.preference = HotkeyPreference.current
+        hotkeyManager.activationMode = DictationActivationPreference.current
+        NotificationCenter.default.addObserver(
+            forName: .dictatorActivationModeChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.hotkeyManager.activationMode = DictationActivationPreference.current
+        }
         NotificationCenter.default.addObserver(
             forName: .dictatorHotkeyPreferenceChanged,
             object: nil,
@@ -115,6 +126,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusBarController.onToggleDictation = { [weak self] in self?.toggleMenuDictation() }
         statusBarController.onTestTranscription = { [weak self] in self?.toggleTranscriptionTest() }
         statusBarController.onShowLastTranscription = { [weak self] in self?.showLastTranscription() }
+        statusBarController.onShowTranscriptionPopover = { [weak self] button in
+            self?.showTranscriptionPopover(from: button)
+        }
         statusBarController.onOpenLearnedTerms = { [weak self] in self?.showLearnedTermsWindow() }
         launchWindowController?.onRetry = { [weak self] in self?.startStartupTask() }
         launchWindowController?.onRetryInsert = { [weak self] text in
@@ -134,7 +148,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             AudioCache.purgeStale()
         }
 
+        installEscapeMonitor()
+        WordCorrectionPopoverController.shared.onLearned = { [weak self] _ in
+            self?.pushTranscriptionHistoryToPanels()
+        }
         startStartupTask()
+    }
+
+    private func installEscapeMonitor() {
+        escapeMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard event.keyCode == 53 else { return }
+            Task { @MainActor in
+                self?.cancelActiveDictation()
+            }
+        }
+    }
+
+    private func cancelActiveDictation() {
+        guard stateMachine.isRecording else { return }
+        hotkeyManager.cancelToggleSessionIfNeeded()
+        microphoneArmTask?.cancel()
+        microphoneArmTask = nil
+        streamingTranscriptionTask?.cancel()
+        streamingTranscriptionTask = nil
+        transcriptionTestMode = false
+        Task {
+            await audioRecorder.cancelRecording()
+            await transcriptionEngine.endStreaming()
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                DiagnosticsLogger.exitDictationSession()
+                self.stateMachine.transition(to: .idle)
+                self.recordingOverlay.showTransientFeedback("Nahrávání zrušeno (Esc)", duration: 2)
+                SoundFeedbackService.playError()
+            }
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -158,8 +206,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeyManager.onModifierEvent = { [weak self] key, down in
             self?.handleModifierEvent(key: key, down: down)
         }
+        hotkeyManager.onWrongModifierHint = { [weak self] active in
+            self?.handleWrongModifierHint(active: active)
+        }
         hotkeyManager.onKeyDown = { [weak self] in self?.beginDictation(trigger: "hotkey") }
         hotkeyManager.onKeyUp = { [weak self] in self?.endDictation(trigger: "hotkey") }
+    }
+
+    private func handleWrongModifierHint(active: Bool) {
+        wrongModifierHeld = active
+        guard !stateMachine.isRecording else { return }
+        if active {
+            recordingOverlay.show(.wrongKey)
+        } else if optionHeld {
+            recordingOverlay.sync(appState: stateMachine.state, rightOptionHeld: true)
+        } else {
+            recordingOverlay.hide()
+        }
     }
 
     private func observeAppState() {
@@ -338,6 +401,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         stateMachine.transition(to: .recording)
         DiagnosticsLogger.enterDictationSession(id: UUID())
         recordingOverlay.show(.recording)
+        SoundFeedbackService.playRecordingStart()
         DiagnosticsLogger.log("Dictation start (\(trigger)): arming microphone")
 
         streamingTranscriptionTask?.cancel()
@@ -451,7 +515,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if PostProcessingPreference.isEnabled, await postProcessingEngine.isLoaded {
                     let processed: String? = await withTaskGroup(of: String?.self) { group in
                         group.addTask { [weak self] in
-                            try? await self?.postProcessingEngine.process(joinedText)
+                            try? await self?.postProcessingEngine.process(
+                                joinedText,
+                                targetAppBundleID: targetApp?.bundleIdentifier
+                            )
                         }
                         group.addTask {
                             try? await Task.sleep(for: .milliseconds(2_500))
@@ -511,14 +578,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
 
                 let injectExternally = dictationTargetTracker.shouldInjectExternally(into: targetApp)
+                let reviewBeforePaste = DictationReviewPreference.isEnabled && injectExternally
 
                 await MainActor.run { [weak self] in
                     guard let self else { return }
                     self.publishLastTranscription(entry)
                     LearningEngine.shared.observeTranscriptionDone(entry: entry)
                     self.checkForRetryAndObserve(entry: entry)
+                    SoundFeedbackService.playRecordingStop()
                     self.recordingOverlay.hide()
-                    if injectExternally {
+                    if reviewBeforePaste {
+                        DiagnosticsLogger.log("Dictation (\(trigger)): review-before-paste")
+                        self.stateMachine.transition(to: .idle)
+                        self.showLaunchWindow()
+                        self.launchWindowController?.focusTranscriptionPanel()
+                        self.recordingOverlay.showTransientFeedback(
+                            "Přepis je v historii — zkontroluj a klepni „Vložit"",
+                            duration: 5
+                        )
+                    } else if injectExternally {
                         self.stateMachine.transition(to: .injecting)
                     } else {
                         DiagnosticsLogger.log("Dictation (\(trigger)): history only — skipping external inject")
@@ -526,7 +604,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     }
                 }
 
-                guard injectExternally else { return }
+                guard injectExternally, !reviewBeforePaste else { return }
 
                 let injectResult = await pasteWithWatchdog(text: finalText, into: targetApp, trigger: trigger)
                 await MainActor.run { [weak self] in
@@ -556,7 +634,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             self.transcriptionTestMode = false
             self.stateMachine.transition(to: .idle)
-            self.recordingOverlay.hide()
+            SoundFeedbackService.playError()
+            self.recordingOverlay.showTransientFeedback(message, duration: 5)
             self.statusBarController.showTransientStatus(message, duration: 6)
             self.showLaunchWindow()
         }
@@ -632,7 +711,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DiagnosticsLogger.log("Inject watchdog: background inject exceeded 5s (\(trigger))")
             Task { @MainActor in
                 guard let self else { return }
-                self.recordingOverlay.hide()
+                SoundFeedbackService.playError()
+                self.recordingOverlay.showTransientFeedback(
+                    "Vložení trvá dlouho — text je v okně Dictatoru",
+                    duration: 5
+                )
                 self.statusBarController.showTransientStatus(
                     "Vložení trvá dlouho — text je v okně Dictatoru",
                     duration: 4

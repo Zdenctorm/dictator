@@ -8,7 +8,7 @@ struct DictatorMain {
         let delegate = AppDelegate()
 
         app.delegate = delegate
-        app.setActivationPolicy(.regular)
+        AppAppearancePreference.applyActivationPolicy()
         app.run()
     }
 }

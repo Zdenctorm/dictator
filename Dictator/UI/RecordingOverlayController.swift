@@ -46,6 +46,13 @@ final class RecordingOverlayController {
         panel?.orderOut(nil)
     }
 
+    /// Krátká zpráva nahoře na obrazovce (chyby vkládání, přepisu) — viditelná i bez otevřeného menu.
+    func showTransientFeedback(_ message: String, duration: TimeInterval = 4.5) {
+        cancelHideDelay()
+        show(.busy(message))
+        scheduleHide(after: duration)
+    }
+
     func updateStreamingPreview(_ preview: StreamingPreview) {
         guard currentMode == .recording || isStreamingPreviewMode(currentMode) else { return }
         currentMode = .streamingPreview(confirmed: preview.confirmedText, draft: preview.draftText)

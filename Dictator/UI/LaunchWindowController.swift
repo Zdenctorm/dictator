@@ -65,7 +65,7 @@ final class LaunchWindowController: NSWindowController {
         let title = AppTheme.label("Dictator běží", font: AppTheme.Font.largeTitle, color: AppTheme.Color.title)
 
         let detail = AppTheme.label(
-            "Soukromé diktování v češtině. Podržte Option (⌥), mluvte a pusťte — přepis se objeví níže. Do jiné aplikace ho vložíte tlačítkem „Vložit“ u řádku v historii.",
+            "Soukromé diktování v češtině. Podržte \(HotkeyPreference.current.hintLabel), mluvte a pusťte — text se vloží do aplikace, kde máte kurzor. Historie přepisů je níže (záloha a opravy slov).",
             font: AppTheme.Font.body,
             color: AppTheme.Color.body,
             lines: 0
@@ -244,7 +244,7 @@ final class LaunchWindowController: NSWindowController {
         let percent = Int((latestDownloadProgress.fraction * 100).rounded())
 
         downloadDetailLabel.stringValue = "Staženo \(downloaded) z \(total) (\(percent) %)."
-        statusLabel.stringValue = "První spuštění stahuje lokální model do tohoto Macu. Diktování přes Option se zapne až po dokončení. Příště už se model nestahuje. Probíhá už \(elapsedText). Nezavírejte aplikaci."
+        statusLabel.stringValue = "První spuštění stahuje lokální model (~\(preference.label.lowercased())). Můžete už diktovat — přepis dokončíme po stažení. Příště se model nestahuje. Probíhá už \(elapsedText). Nezavírejte aplikaci."
     }
 
     private static let byteFormatter: ByteCountFormatter = {

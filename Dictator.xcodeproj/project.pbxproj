@@ -48,6 +48,13 @@
 		010000000000000000000021 /* AccessibilitySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000021 /* AccessibilitySettings.swift */; };
 		010000000000000000000022 /* AccessibilitySupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000022 /* AccessibilitySupport.swift */; };
 		01000000000000000000001D /* LearnedTermsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000020 /* LearnedTermsView.swift */; };
+		010000000000000000000037 /* DictationActivationPreference.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000033 /* DictationActivationPreference.swift */; };
+		010000000000000000000038 /* AppAppearancePreference.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000034 /* AppAppearancePreference.swift */; };
+		010000000000000000000039 /* DictationReviewPreference.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000035 /* DictationReviewPreference.swift */; };
+		01000000000000000000003A /* AppContextPostProcessing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000036 /* AppContextPostProcessing.swift */; };
+		01000000000000000000003B /* MicrophonePreference.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000037 /* MicrophonePreference.swift */; };
+		01000000000000000000003C /* SoundFeedbackService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000038 /* SoundFeedbackService.swift */; };
+		01000000000000000000003D /* StatusBarPopoverController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000039 /* StatusBarPopoverController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
