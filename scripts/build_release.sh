@@ -11,6 +11,14 @@ APP_DIST="${DIST_DIR}/Dictator.app"
 mkdir -p "${DIST_DIR}" "${SOURCE_PACKAGES_PATH}"
 rm -rf "${APP_DIST}"
 
+# SPM workspace-state.json stores absolute artifact paths; stale cache breaks builds after moving the repo.
+WORKSPACE_STATE="${SOURCE_PACKAGES_PATH}/workspace-state.json"
+if [[ -f "${WORKSPACE_STATE}" ]] && ! grep -q "\"${ROOT_DIR}/" "${WORKSPACE_STATE}"; then
+  echo "Removing stale Swift package cache (project path changed)..." >&2
+  rm -rf "${SOURCE_PACKAGES_PATH}"
+  mkdir -p "${SOURCE_PACKAGES_PATH}"
+fi
+
 if ! xcrun --find metal >/dev/null 2>&1; then
   echo "Chybí Metal Toolchain (potřebný pro MLX / lokální post-processing)." >&2
   echo "Stáhni ho v Xcode nebo spusť:" >&2
@@ -30,11 +38,20 @@ xcodebuild \
 
 ditto "${APP_SOURCE}" "${APP_DIST}"
 
-# xcodebuild with CODE_SIGNING_ALLOWED=NO leaves the main binary linker-signed while
-# embedded Sparkle helpers are adhoc/runtime — dyld then aborts with mismatched Team IDs.
-# Re-sign inside-out so every Mach-O shares one identity (adhoc "-" for local dist).
-ENTITLEMENTS="${ROOT_DIR}/Dictator/Resources/Dictator.entitlements" \
-  "${ROOT_DIR}/scripts/codesign_app_bundle.sh" "${APP_DIST}" "-"
+# Do NOT ad-hoc re-sign here. xcodebuild leaves the main binary linker-signed and Sparkle
+# helpers adhoc/runtime — that pair loads correctly. Re-signing the main executable with "-"
+# breaks dyld ("different Team IDs"). For Developer ID distribution use sign_and_notarize.sh.
+
+if ! codesign --verify --deep --strict --verbose=2 "${APP_DIST}"; then
+  if [[ "${ALLOW_UNVERIFIED_LOCAL_BUILD:-0}" == "1" ]]; then
+    echo "Warning: strict codesign verify failed, continuing because ALLOW_UNVERIFIED_LOCAL_BUILD=1." >&2
+  else
+    echo "Error: strict codesign verify failed for ${APP_DIST}." >&2
+    echo "For distribution, run sign_and_notarize.sh with a Developer ID identity." >&2
+    echo "For local-only testing, rerun with ALLOW_UNVERIFIED_LOCAL_BUILD=1." >&2
+    exit 1
+  fi
+fi
 
 "${ROOT_DIR}/scripts/create_dmg.sh"
 

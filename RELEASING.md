@@ -51,11 +51,24 @@ Sparkle určuje „je tohle novější verze?" podle `sparkle:version`. Epoch za
 
 **Build failne**
 - Smaž `build/` a zkus znovu (`rm -rf build/DerivedData build/SourcePackages`)
+- Chyba `no XCFramework found at .../claude/dictator/build/SourcePackages/...` = projekt byl přesunut, ale SPM cache má starou absolutní cestu. `rm -rf build/SourcePackages` stačí (`build_release.sh` to od teď detekuje sám)
+- `build_release.sh` nově failne při nevalidním strict codesign verify. Pro lokální-only test lze použít `ALLOW_UNVERIFIED_LOCAL_BUILD=1 ./scripts/build_release.sh`
 - `xcodebuild -resolvePackageDependencies` ručně
 
 **Sparkle hlásí "signature mismatch"**
 - DMG byl po `sign_update` upravený (nepravděpodobné, ale teoreticky)
 - Spusť release znovu
+
+**„Unable to check for updates" / „Hledání aktualizací se nezdařilo"**
+- U lokálního buildu (Xcode, `build_release.sh` bez Developer ID) je to **očekávané** — Sparkle vyžaduje podepsaný release
+- Appka diktování funguje; auto-update až po `sign_and_notarize.sh` a distribuci DMG z GitHub Releases
+- V menu u nepodepsaného buildu položka „Zkontrolovat aktualizace…" už není
+
+**„Updater spadl" hned po startu / appka se nespustí**
+- Typicky rozbitý code signing: hlavní binárka a `Sparkle.framework` mají různé Team ID (dyld: `different Team IDs`)
+- Nepoužívej `codesign --deep` ani ruční přepodpis jen části bundle — `scripts/sign_and_notarize.sh` podepisuje inside-out jedním Developer ID
+- Lokální `build_release.sh` nechává podpis z xcodebuild (linker-signed main + adhoc Sparkle) — to je v pořádku
+- Pokud máš v `/tmp/Dictator-resign.app` nebo po experimentu s `codesign`, smaž kopii a spusť čerstvý build z `dist/Dictator.app` nebo Xcode Debug
 
 ## Distribuce kolegům
 
