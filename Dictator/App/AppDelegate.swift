@@ -55,15 +55,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.hotkeyManager.preference = HotkeyPreference.current
             DiagnosticsLogger.log("HotkeyManager updated to preference \(HotkeyPreference.current.rawValue)")
         }
+        let sparkleUpdatesAvailable = SparkleUpdateSupport.isAvailable
+        DiagnosticsLogger.log("Sparkle updater availability: \(sparkleUpdatesAvailable ? "enabled" : "disabled")")
         updaterController = SPUStandardUpdaterController(
-            startingUpdater: true,
+            startingUpdater: sparkleUpdatesAvailable,
             updaterDelegate: nil,
             userDriverDelegate: nil
         )
         recordingOverlay = RecordingOverlayController()
         statusBarController = StatusBarController(
             stateMachine: stateMachine,
-            updaterController: updaterController
+            updaterController: updaterController,
+            sparkleUpdatesAvailable: sparkleUpdatesAvailable
         )
         launchWindowController = LaunchWindowController(stateMachine: stateMachine)
 

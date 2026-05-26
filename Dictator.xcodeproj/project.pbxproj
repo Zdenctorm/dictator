@@ -36,6 +36,7 @@
 		010000000000000000000019 /* LearningEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001D /* LearningEngine.swift */; };
 		01000000000000000000001B /* PersistentStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001E /* PersistentStorage.swift */; };
 		010000000000000000000024 /* DictationTargetTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000025 /* DictationTargetTracker.swift */; };
+		010000000000000000000025 /* SparkleUpdateSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000026 /* SparkleUpdateSupport.swift */; };
 		01000000000000000000001C /* WordCorrectionPopoverController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001F /* WordCorrectionPopoverController.swift */; };
 		010000000000000000000021 /* AccessibilitySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000021 /* AccessibilitySettings.swift */; };
 		010000000000000000000022 /* AccessibilitySupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000022 /* AccessibilitySupport.swift */; };
@@ -75,6 +76,7 @@
 		02000000000000000000001D /* LearningEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearningEngine.swift; sourceTree = "<group>"; };
 		02000000000000000000001E /* PersistentStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentStorage.swift; sourceTree = "<group>"; };
 		020000000000000000000025 /* DictationTargetTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationTargetTracker.swift; sourceTree = "<group>"; };
+		020000000000000000000026 /* SparkleUpdateSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdateSupport.swift; sourceTree = "<group>"; };
 		02000000000000000000001F /* WordCorrectionPopoverController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordCorrectionPopoverController.swift; sourceTree = "<group>"; };
 		020000000000000000000021 /* AccessibilitySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilitySettings.swift; sourceTree = "<group>"; };
 		020000000000000000000022 /* AccessibilitySupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilitySupport.swift; sourceTree = "<group>"; };
@@ -137,6 +139,7 @@
 				020000000000000000000002 /* AppState.swift */,
 				020000000000000000000003 /* HotkeyManager.swift */,
 				020000000000000000000025 /* DictationTargetTracker.swift */,
+				020000000000000000000026 /* SparkleUpdateSupport.swift */,
 				020000000000000000000019 /* PasteInsertionPlan.swift */,
 				020000000000000000000004 /* AudioRecorder.swift */,
 				020000000000000000000005 /* TranscriptionEngine.swift */,
@@ -321,6 +324,7 @@
 				010000000000000000000002 /* AppState.swift in Sources */,
 				010000000000000000000003 /* HotkeyManager.swift in Sources */,
 				010000000000000000000024 /* DictationTargetTracker.swift in Sources */,
+				010000000000000000000025 /* SparkleUpdateSupport.swift in Sources */,
 				010000000000000000000004 /* AudioRecorder.swift in Sources */,
 				010000000000000000000005 /* TranscriptionEngine.swift in Sources */,
 				010000000000000000000006 /* TextInjector.swift in Sources */,
