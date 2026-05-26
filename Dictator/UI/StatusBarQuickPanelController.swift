@@ -13,7 +13,6 @@ final class StatusBarQuickPanelController: NSObject, NSPopoverDelegate {
         lines: 0
     )
 
-    private var onInsert: ((String) -> Void)?
     private var onOpenHistory: (() -> Void)?
     private var onOpenSettings: (() -> Void)?
 
@@ -38,11 +37,9 @@ final class StatusBarQuickPanelController: NSObject, NSPopoverDelegate {
         relativeTo button: NSStatusBarButton,
         state: DictatorState,
         recentEntries: [TranscriptionHistoryEntry],
-        onInsert: @escaping (String) -> Void,
         onOpenHistory: @escaping () -> Void,
         onOpenSettings: @escaping () -> Void
     ) {
-        self.onInsert = onInsert
         self.onOpenHistory = onOpenHistory
         self.onOpenSettings = onOpenSettings
 
@@ -75,11 +72,7 @@ final class StatusBarQuickPanelController: NSObject, NSPopoverDelegate {
         for (index, entry) in entries.enumerated() {
             let row = QuickPanelEntryRow(
                 title: Self.truncatedTitle(entry.text),
-                subtitle: Self.dateFormatter.string(from: entry.recordedAt),
-                insertAction: { [weak self] in
-                    self?.onInsert?(entry.text)
-                    self?.close()
-                }
+                subtitle: Self.dateFormatter.string(from: entry.recordedAt)
             )
             entriesStack.addArrangedSubview(row)
             row.widthAnchor.constraint(equalTo: entriesStack.widthAnchor).isActive = true
@@ -198,44 +191,25 @@ final class StatusBarQuickPanelController: NSObject, NSPopoverDelegate {
 
 @MainActor
 private final class QuickPanelEntryRow: NSView {
-    private let insertTarget: InsertTarget
-
-    init(title: String, subtitle: String, insertAction: @escaping () -> Void) {
-        insertTarget = InsertTarget(action: insertAction)
+    init(title: String, subtitle: String) {
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
 
         let titleLabel = AppTheme.label(title, font: AppTheme.Font.body, color: AppTheme.Color.title, lines: 2)
         let subtitleLabel = AppTheme.label(subtitle, font: AppTheme.Font.footnote, color: AppTheme.Color.body)
 
-        let insertButton = AppTheme.primaryButton("Vložit", target: nil, action: nil)
-        insertButton.controlSize = .small
-        insertButton.setContentHuggingPriority(.required, for: .horizontal)
-        insertButton.setContentCompressionResistancePriority(.required, for: .horizontal)
-        insertButton.translatesAutoresizingMaskIntoConstraints = false
-        insertButton.target = insertTarget
-        insertButton.action = #selector(InsertTarget.perform)
-
         let textStack = NSStackView(views: [titleLabel, subtitleLabel])
         textStack.orientation = .vertical
         textStack.alignment = .leading
         textStack.spacing = 2
         textStack.translatesAutoresizingMaskIntoConstraints = false
-        textStack.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        textStack.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-
-        let row = NSStackView(views: [textStack, insertButton])
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.spacing = AppTheme.Spacing.row
-        row.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(row)
+        addSubview(textStack)
 
         NSLayoutConstraint.activate([
-            row.leadingAnchor.constraint(equalTo: leadingAnchor),
-            row.trailingAnchor.constraint(equalTo: trailingAnchor),
-            row.topAnchor.constraint(equalTo: topAnchor),
-            row.bottomAnchor.constraint(equalTo: bottomAnchor),
+            textStack.leadingAnchor.constraint(equalTo: leadingAnchor),
+            textStack.trailingAnchor.constraint(equalTo: trailingAnchor),
+            textStack.topAnchor.constraint(equalTo: topAnchor),
+            textStack.bottomAnchor.constraint(equalTo: bottomAnchor),
             titleLabel.widthAnchor.constraint(lessThanOrEqualTo: textStack.widthAnchor),
             subtitleLabel.widthAnchor.constraint(lessThanOrEqualTo: textStack.widthAnchor)
         ])
@@ -243,17 +217,5 @@ private final class QuickPanelEntryRow: NSView {
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
-    }
-}
-
-private final class InsertTarget: NSObject {
-    private let action: () -> Void
-
-    init(action: @escaping () -> Void) {
-        self.action = action
-    }
-
-    @objc func perform() {
-        action()
     }
 }

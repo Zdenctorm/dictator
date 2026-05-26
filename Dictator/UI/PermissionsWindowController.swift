@@ -73,7 +73,7 @@ final class PermissionsWindowController: NSWindowController {
     private let microphonePicker = NSPopUpButton(frame: .zero, pullsDown: false)
     private let showInDockCheckbox = NSButton(checkboxWithTitle: "Zobrazit ikonu v Docku", target: nil, action: nil)
     private let reviewBeforePasteCheckbox = NSButton(
-        checkboxWithTitle: "Nejdřív zkontrolovat přepis (bez automatického vložení)",
+        checkboxWithTitle: "Nejdřív zkontrolovat přepis (zkopírovat do schránky, bez auto-vložení)",
         target: nil,
         action: nil
     )

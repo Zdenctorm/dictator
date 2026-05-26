@@ -100,7 +100,7 @@ Aplikace má jen dvě:
 - ✅ Vložení do aktivního okna (Accessibility nebo Cmd+V podle aplikace)
 - ✅ Menu bar ikona se stavovými indikátory (idle / nahrávám / přepisuji / vkládám / chyba)
 - ✅ HUD overlay nahoře obrazovky během nahrávání („Držíš Option", „Nahrávám", „Vloženo")
-- ✅ Historie přepisů (per-řádek, kopírovat / vložit znovu)
+- ✅ Historie přepisů (per-řádek, kopírovat)
 - ✅ Zachytávání cílové aplikace na začátku nahrávání (text vždy jde tam, kde uživatel stiskl klávesu)
 
 ### Konfigurace

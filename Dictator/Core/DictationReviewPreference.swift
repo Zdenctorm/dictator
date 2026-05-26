@@ -1,6 +1,6 @@
 import Foundation
 
-/// Když je zapnuto, externí vložení textu vyžaduje potvrzení v okně Dictatoru (Aqua-style review).
+/// Když je zapnuto, text se po diktování neposílá automaticky do cílové aplikace — přepis se zkopíruje do schránky a zobrazí v historii.
 enum DictationReviewPreference {
     private static let storageKey = "reviewBeforePaste"
 

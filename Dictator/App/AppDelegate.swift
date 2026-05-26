@@ -21,7 +21,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastTranscriptionText: String?
     private var transcriptionHistory: [TranscriptionHistoryEntry] = []
     private let maxTranscriptionHistoryCount = 200
-    private var backgroundInjectTask: Task<Void, Never>?
     private var startupTask: Task<Void, Never>?
     private var microphoneArmTask: Task<Void, Never>?
     private var streamingTranscriptionTask: Task<Void, Never>?
@@ -142,10 +141,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.showStatusBarQuickPanel(from: button)
         }
         launchWindowController?.onRetry = { [weak self] in self?.startStartupTask() }
-        launchWindowController?.onRetryInsert = { [weak self] text in
-            self?.retryInsert(text: text)
-        }
-
         // Bootstrap learning + persistence + audio housekeeping. Pořadí důležité:
         // 1) Inicializuj LearningEngine (zkonzumuje legacy slovník při prvním běhu).
         // 2) Načti historii z disku, ať uživatel po restartu uvidí předchozí přepisy.
@@ -665,12 +660,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self.recordingOverlay.hide()
                     if reviewBeforePaste {
                         DiagnosticsLogger.log("Dictation (\(trigger)): review-before-paste")
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(injectText, forType: .string)
                         self.stateMachine.transition(to: .idle)
                         self.showLaunchWindow()
                         self.launchWindowController?.focusTranscriptionPanel()
                         self.recordingOverlay.showTransientFeedback(
-                            "Přepis je v historii — zkontroluj a klepni „Vložit“",
+                            "Přepis je ve schránce — v cílové aplikaci vlož ⌘V",
                             duration: 5
+                        )
+                        self.statusBarController.showTransientStatus(
+                            "Přepis zkopírován — přepni do cílové aplikace a vlož ⌘V",
+                            duration: 6
                         )
                     } else if injectExternally {
                         self.stateMachine.transition(to: .injecting)
@@ -746,7 +747,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func pushTranscriptionHistoryToPanels() {
         launchWindowController?.setTranscriptionHistory(transcriptionHistory)
         statusBarController.updateRecentTranscriptions(transcriptionHistory) { [weak self] text in
-            self?.startBackgroundInject(text: text, trigger: "menu-recent")
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+            self?.statusBarController.showTransientStatus("Přepis zkopírován", duration: 2)
         }
     }
 
@@ -795,10 +798,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(text, forType: .string)
                 self?.statusBarController.showTransientStatus("Zkopírováno", duration: 2)
-            },
-            onInsert: { [weak self] in
-                guard let text = entry?.text else { return }
-                self?.startBackgroundInject(text: text, trigger: "menu-popover")
             }
         )
     }
@@ -846,27 +845,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             recordingOverlay.scheduleAutoHide(after: 5)
             showLastTranscription()
             statusBarController.showTransientStatus(
-                "Text je v okně Dictatoru — zkopíruj nebo zkus „Vložit“",
+                "Text je v historii — zkopíruj ho odtud",
                 duration: 5
             )
         }
         DiagnosticsLogger.log("Idle after dictation pipeline (\(trigger))")
-    }
-
-    private func startBackgroundInject(text: String, trigger: String) {
-        backgroundInjectTask?.cancel()
-        backgroundInjectTask = Task { [weak self] in
-            guard let self else { return }
-            let injectResult = await pasteWithWatchdog(text: text, into: nil, trigger: trigger)
-            await MainActor.run {
-                self.finalizeInjectUI(injectResult, trigger: trigger)
-            }
-        }
-    }
-
-    private func retryInsert(text: String) {
-        startBackgroundInject(text: text, trigger: "manual")
-        statusBarController.showTransientStatus("Zkouším vložit text…", duration: 2)
     }
 
     private func showTranscriptionTestAlert(text: String?, errorMessage: String?) {
@@ -878,9 +861,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             relativeTo: button,
             state: stateMachine.state,
             recentEntries: Array(transcriptionHistory.prefix(3)),
-            onInsert: { [weak self] text in
-                self?.startBackgroundInject(text: text, trigger: "quick-panel")
-            },
             onOpenHistory: { [weak self] in
                 guard let self else { return }
                 self.launchWindowController?.setTranscriptionHistory(self.transcriptionHistory)

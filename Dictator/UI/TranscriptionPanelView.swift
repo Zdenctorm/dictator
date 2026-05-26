@@ -5,14 +5,11 @@ final class TranscriptionPanelView: NSView {
     static let wordMarkupLegend = """
     Nejnovější nahoře. Klikni na podtržené slovo pro opravu. \
     Plné zelené podtržení: už opravené slovo. Tečkované oranžové: nízká jistota přepisu. \
-    Šedé plné: střední jistota. U každého přepisu můžeš text zkopírovat nebo vložit do aktivního pole.
+    Šedé plné: střední jistota.     U každého přepisu můžeš text zkopírovat. Do jiné aplikace ho vložíš při diktování (podrž Option).
     """
 
-    /// Called with the text of the row whose "vložit" button was tapped.
-    var onInsert: ((String) -> Void)?
-
     private let placeholderLabel = AppTheme.label(
-        "Zatím nic — podrž Option (⌥) a mluv. Přepisy se objeví tady; do jiné aplikace je vložíš tlačítkem „Vložit“.",
+        "Zatím nic — podrž Option (⌥) a mluv. Přepisy se objeví tady jako záloha; text při diktování jde rovnou do aktivního pole.",
         font: AppTheme.Font.body,
         color: AppTheme.Color.body,
         lines: 0
@@ -61,8 +58,7 @@ final class TranscriptionPanelView: NSView {
             let row = HistoryRowView(
                 entry: entry,
                 timestamp: Self.historyDateFormatter.string(from: entry.recordedAt),
-                onCopy: { [weak self] text in self?.copyToPasteboard(text) },
-                onInsert: { [weak self] text in self?.onInsert?(text) }
+                onCopy: { [weak self] text in self?.copyToPasteboard(text) }
             )
             rowViews.append(row)
             entriesStack.addArrangedSubview(row)
@@ -200,7 +196,6 @@ private final class HistoryRowView: NSView, NSTextViewDelegate {
     private let bodyTextView: NSTextView
     private var bodyHeightConstraint: NSLayoutConstraint?
     private let copyButton: NSButton
-    private let insertButton: NSButton
     private var copyRevertTimer: Timer?
     private var lastMeasuredTextWidth: CGFloat = 0
 
@@ -210,8 +205,7 @@ private final class HistoryRowView: NSView, NSTextViewDelegate {
     init(
         entry: TranscriptionHistoryEntry,
         timestamp: String,
-        onCopy: @escaping (String) -> Void,
-        onInsert: @escaping (String) -> Void
+        onCopy: @escaping (String) -> Void
     ) {
         self.entry = entry
         self.text = entry.text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -223,12 +217,6 @@ private final class HistoryRowView: NSView, NSTextViewDelegate {
             symbol: "doc.on.doc",
             tint: AppTheme.Color.body
         )
-        self.insertButton = HistoryRowView.makeSmallButton(
-            title: "Vložit",
-            symbol: "text.insert",
-            tint: AppTheme.Color.accent
-        )
-
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
 
@@ -243,13 +231,10 @@ private final class HistoryRowView: NSView, NSTextViewDelegate {
 
         copyButton.target = self
         copyButton.action = #selector(copyTapped)
-        insertButton.target = self
-        insertButton.action = #selector(insertTapped)
 
         self.onCopy = onCopy
-        self.onInsert = onInsert
 
-        let actions = NSStackView(views: [copyButton, insertButton])
+        let actions = NSStackView(views: [copyButton])
         actions.orientation = .horizontal
         actions.alignment = .centerY
         actions.spacing = AppTheme.Spacing.row
@@ -277,7 +262,6 @@ private final class HistoryRowView: NSView, NSTextViewDelegate {
 
         if text.isEmpty {
             copyButton.isEnabled = false
-            insertButton.isEnabled = false
         }
     }
 
@@ -290,7 +274,6 @@ private final class HistoryRowView: NSView, NSTextViewDelegate {
     }
 
     private var onCopy: ((String) -> Void)?
-    private var onInsert: ((String) -> Void)?
 
     private func configureBodyTextView() {
         bodyTextView.isEditable = false
@@ -312,7 +295,6 @@ private final class HistoryRowView: NSView, NSTextViewDelegate {
         super.viewDidChangeEffectiveAppearance()
         refreshBodyAppearance()
         copyButton.contentTintColor = AppTheme.resolved(AppTheme.Color.body, for: self)
-        insertButton.contentTintColor = AppTheme.resolved(AppTheme.Color.accent, for: self)
     }
 
     private func refreshBodyAppearance() {
@@ -387,10 +369,6 @@ private final class HistoryRowView: NSView, NSTextViewDelegate {
                 self?.copyButton.title = Self.copyDefaultTitle
             }
         }
-    }
-
-    @objc private func insertTapped() {
-        onInsert?(text)
     }
 
     private static func fallbackWords(from text: String) -> [WordToken] {

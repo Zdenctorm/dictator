@@ -6,7 +6,6 @@ final class StatusBarPopoverController: NSObject, NSPopoverDelegate {
     private let previewLabel = NSTextField(wrappingLabelWithString: "")
     private let timestampLabel = NSTextField(labelWithString: "")
     private var onCopy: (() -> Void)?
-    private var onInsert: (() -> Void)?
 
     override init() {
         super.init()
@@ -21,11 +20,9 @@ final class StatusBarPopoverController: NSObject, NSPopoverDelegate {
     func show(
         relativeTo statusButton: NSStatusBarButton,
         entry: TranscriptionHistoryEntry?,
-        onCopy: @escaping () -> Void,
-        onInsert: @escaping () -> Void
+        onCopy: @escaping () -> Void
     ) {
         self.onCopy = onCopy
-        self.onInsert = onInsert
 
         if let entry {
             previewLabel.stringValue = entry.text
@@ -60,9 +57,8 @@ final class StatusBarPopoverController: NSObject, NSPopoverDelegate {
         timestampLabel.font = AppTheme.Font.footnote
         timestampLabel.textColor = AppTheme.Color.body
 
-        let copyButton = AppTheme.secondaryButton("Zkopírovat", target: self, action: #selector(copyTapped))
-        let insertButton = AppTheme.primaryButton("Vložit", target: self, action: #selector(insertTapped))
-        let buttons = NSStackView(views: [copyButton, insertButton])
+        let copyButton = AppTheme.primaryButton("Zkopírovat", target: self, action: #selector(copyTapped))
+        let buttons = NSStackView(views: [copyButton])
         buttons.orientation = .horizontal
         buttons.spacing = AppTheme.Spacing.row
 
@@ -86,11 +82,6 @@ final class StatusBarPopoverController: NSObject, NSPopoverDelegate {
 
     @objc private func copyTapped() {
         onCopy?()
-        close()
-    }
-
-    @objc private func insertTapped() {
-        onInsert?()
         close()
     }
 }

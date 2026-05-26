@@ -4,7 +4,6 @@ import Combine
 @MainActor
 final class LaunchWindowController: NSWindowController {
     var onRetry: (() -> Void)?
-    var onRetryInsert: ((String) -> Void)?
 
     private let stateMachine: AppStateMachine
     private var cancellables = Set<AnyCancellable>()
@@ -83,9 +82,6 @@ final class LaunchWindowController: NSWindowController {
         downloadProgressIndicator.controlSize = .regular
 
         transcriptionCard = transcriptionPanel
-        transcriptionPanel.onInsert = { [weak self] text in
-            self?.onRetryInsert?(text)
-        }
 
         let modelCard = AppTheme.card([
             downloadTitleLabel,
