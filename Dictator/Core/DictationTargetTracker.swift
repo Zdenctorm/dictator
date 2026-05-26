@@ -54,9 +54,10 @@ final class DictationTargetTracker {
             updateLastExternal(frontmost)
             return frontmost
         }
-        // Některé appky občas při přechodu focusu vrátí na okamžik nil/vlastní appku.
-        // Pokud jsme externí appku viděli před chvílí, použijeme ji jako cíl.
-        if let fallback = recentExternalTarget() {
+        // Když API vrátí nil, může jít o krátký focus race. V tom případě je bezpečné
+        // použít čerstvě viděnou externí appku. Pokud je frontmost Dictator, fallback
+        // neděláme, aby diktování zůstalo "history only".
+        if frontmost == nil, let fallback = recentExternalTarget() {
             DiagnosticsLogger.log(
                 "Dictation target fallback to recent external app: \(fallback.localizedName ?? "?") (\(fallback.bundleIdentifier ?? "?"))"
             )
@@ -89,6 +90,7 @@ final class DictationTargetTracker {
     private func recentExternalTarget() -> NSRunningApplication? {
         guard let app = lastExternalApplication,
               !isOwnApp(app),
+              !app.isTerminated,
               let seenAt = lastExternalActivationAt,
               Date().timeIntervalSince(seenAt) <= recentExternalFallbackWindow else {
             return nil
