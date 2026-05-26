@@ -75,9 +75,9 @@ final class TranscriptionTestSheet {
     }
 
     @objc private func closeTapped() {
-        let dismiss = onDismiss
+        let completion = onDismiss
         onDismiss = nil
-        dismiss?()
         dismiss()
+        completion?()
     }
 }
