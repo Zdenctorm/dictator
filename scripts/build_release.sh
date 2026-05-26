@@ -34,9 +34,16 @@ ditto "${APP_SOURCE}" "${APP_DIST}"
 # helpers adhoc/runtime — that pair loads correctly. Re-signing the main executable with "-"
 # breaks dyld ("different Team IDs"). For Developer ID distribution use sign_and_notarize.sh.
 
-codesign --verify --deep --strict --verbose=2 "${APP_DIST}" || {
-  echo "Warning: Release bundle failed strict codesign verify; run from Xcode Debug or use sign_and_notarize.sh." >&2
-}
+if ! codesign --verify --deep --strict --verbose=2 "${APP_DIST}"; then
+  if [[ "${ALLOW_UNVERIFIED_LOCAL_BUILD:-0}" == "1" ]]; then
+    echo "Warning: strict codesign verify failed, continuing because ALLOW_UNVERIFIED_LOCAL_BUILD=1." >&2
+  else
+    echo "Error: strict codesign verify failed for ${APP_DIST}." >&2
+    echo "For distribution, run sign_and_notarize.sh with a Developer ID identity." >&2
+    echo "For local-only testing, rerun with ALLOW_UNVERIFIED_LOCAL_BUILD=1." >&2
+    exit 1
+  fi
+fi
 
 "${ROOT_DIR}/scripts/create_dmg.sh"
 

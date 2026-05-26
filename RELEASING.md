@@ -52,6 +52,7 @@ Sparkle určuje „je tohle novější verze?" podle `sparkle:version`. Epoch za
 **Build failne**
 - Smaž `build/` a zkus znovu (`rm -rf build/DerivedData build/SourcePackages`)
 - Chyba `no XCFramework found at .../claude/dictator/build/SourcePackages/...` = projekt byl přesunut, ale SPM cache má starou absolutní cestu. `rm -rf build/SourcePackages` stačí (`build_release.sh` to od teď detekuje sám)
+- `build_release.sh` nově failne při nevalidním strict codesign verify. Pro lokální-only test lze použít `ALLOW_UNVERIFIED_LOCAL_BUILD=1 ./scripts/build_release.sh`
 - `xcodebuild -resolvePackageDependencies` ručně
 
 **Sparkle hlásí "signature mismatch"**
