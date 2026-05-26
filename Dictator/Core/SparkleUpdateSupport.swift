@@ -20,9 +20,22 @@ enum SparkleUpdateSupport {
               let info = signingInfo as? [String: Any] else {
             return false
         }
-        guard let teamID = info[kSecCodeInfoTeamIdentifier as String] as? String else {
+        guard let teamID = info[kSecCodeInfoTeamIdentifier as String] as? String,
+              !teamID.isEmpty else {
             return false
         }
-        return !teamID.isEmpty
+        return hasDeveloperIDApplicationCertificate(in: info)
+    }
+
+    private static func hasDeveloperIDApplicationCertificate(in info: [String: Any]) -> Bool {
+        guard let certificates = info[kSecCodeInfoCertificates as String] as? [SecCertificate] else {
+            return false
+        }
+        return certificates.contains { certificate in
+            guard let summary = SecCertificateCopySubjectSummary(certificate) as String? else {
+                return false
+            }
+            return summary.contains("Developer ID Application")
+        }
     }
 }
