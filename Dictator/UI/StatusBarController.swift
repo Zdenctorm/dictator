@@ -20,6 +20,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let stateMachine: AppStateMachine
     private let updaterController: SPUStandardUpdaterController
+    private let sparkleUpdatesAvailable: Bool
     private var cancellables = Set<AnyCancellable>()
     private var pulseTimer: Timer?
     private var transientResetTimer: Timer?
@@ -34,9 +35,14 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private let launchAtLoginItem = NSMenuItem(title: "Spouštět po přihlášení", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
     private let postProcessingItem = NSMenuItem(title: "Oprava přepisu pomocí AI (lokální LLM)", action: #selector(togglePostProcessing), keyEquivalent: "")
 
-    init(stateMachine: AppStateMachine, updaterController: SPUStandardUpdaterController) {
+    init(
+        stateMachine: AppStateMachine,
+        updaterController: SPUStandardUpdaterController,
+        sparkleUpdatesAvailable: Bool
+    ) {
         self.stateMachine = stateMachine
         self.updaterController = updaterController
+        self.sparkleUpdatesAvailable = sparkleUpdatesAvailable
         super.init()
         setupMenu()
         observeState()
@@ -105,12 +111,26 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         aboutItem.target = self
         menu.addItem(aboutItem)
 
-        let checkForUpdatesItem = NSMenuItem(
-            title: "Zkontrolovat aktualizace…",
-            action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)),
-            keyEquivalent: ""
-        )
-        checkForUpdatesItem.target = updaterController
+        let checkForUpdatesItem: NSMenuItem
+        if sparkleUpdatesAvailable {
+            checkForUpdatesItem = NSMenuItem(
+                title: "Zkontrolovat aktualizace…",
+                action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)),
+                keyEquivalent: ""
+            )
+            checkForUpdatesItem.target = updaterController
+        } else {
+            checkForUpdatesItem = NSMenuItem(
+                title: "Aktualizace nejsou dostupné v lokálním buildu",
+                action: nil,
+                keyEquivalent: ""
+            )
+            checkForUpdatesItem.isEnabled = false
+            AccessibilitySupport.configure(
+                checkForUpdatesItem,
+                help: "Pro automatické aktualizace je potřeba release podepsaný Developer ID."
+            )
+        }
         menu.addItem(checkForUpdatesItem)
 
         menu.addItem(.separator())
@@ -268,6 +288,15 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             return "Doplň oprávnění mikrofon a Zpřístupnění v Nastavení."
         case .error:
             return "Je potřeba zásah — nápověda výše v menu."
+        }
+    }
+
+    private func activationHintLine() -> String {
+        switch DictationActivationPreference.current {
+        case .pushToTalk:
+            return "Podrž \(HotkeyPreference.current.hintLabel) a mluv"
+        case .toggle:
+            return "Stiskni \(HotkeyPreference.current.hintLabel) pro start i stop diktování"
         }
     }
 
