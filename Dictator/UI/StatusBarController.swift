@@ -13,6 +13,9 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     var onShowLastTranscription: (() -> Void)?
     var onOpenLearnedTerms: (() -> Void)?
     var onMenuWillOpen: (() -> Void)?
+    var onShowTranscriptionPopover: ((NSStatusBarButton) -> Void)?
+
+    var statusButton: NSStatusBarButton? { statusItem.button }
 
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let stateMachine: AppStateMachine
@@ -30,6 +33,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private let testTranscriptionMenuItem = NSMenuItem(title: "Ověřit přepis (ukáže text)", action: #selector(runTranscriptionTest), keyEquivalent: "")
     private let lastTranscriptionMenuItem = NSMenuItem(title: "Poslední přepis…", action: #selector(showLastTranscription), keyEquivalent: "")
     private let launchAtLoginItem = NSMenuItem(title: "Spouštět po přihlášení", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
+    private let postProcessingItem = NSMenuItem(title: "Oprava přepisu pomocí AI (lokální LLM)", action: #selector(togglePostProcessing), keyEquivalent: "")
 
     init(
         stateMachine: AppStateMachine,
@@ -75,16 +79,27 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
         lastTranscriptionMenuItem.target = self
         menu.addItem(lastTranscriptionMenuItem)
+
+        let popoverItem = NSMenuItem(
+            title: "Rychlý náhled přepisu",
+            action: #selector(showTranscriptionPopover),
+            keyEquivalent: ""
+        )
+        popoverItem.target = self
+        menu.addItem(popoverItem)
         menu.addItem(.separator())
 
         launchAtLoginItem.target = self
         menu.addItem(launchAtLoginItem)
 
+        postProcessingItem.target = self
+        menu.addItem(postProcessingItem)
+
         let learnedItem = NSMenuItem(title: "Co se Dictator naučil…", action: #selector(openLearnedTerms), keyEquivalent: "")
         learnedItem.target = self
         menu.addItem(learnedItem)
 
-        let setupItem = NSMenuItem(title: "Nastavení a oprávnění", action: #selector(openSetup), keyEquivalent: "")
+        let setupItem = NSMenuItem(title: "Nastavení…", action: #selector(openSetup), keyEquivalent: ",")
         setupItem.target = self
         menu.addItem(setupItem)
 
@@ -135,7 +150,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         onMenuWillOpen?()
         launchAtLoginItem.state = isLaunchAtLoginEnabled ? .on : .off
-        hintMenuItem.title = "Podrž \(HotkeyPreference.current.hintLabel) a mluv"
+        postProcessingItem.state = PostProcessingPreference.isEnabled ? .on : .off
+        hintMenuItem.title = activationHintLine()
         refreshDictationMenuItems()
     }
 
@@ -275,6 +291,15 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         }
     }
 
+    private func activationHintLine() -> String {
+        switch DictationActivationPreference.current {
+        case .pushToTalk:
+            return "Podrž \(HotkeyPreference.current.hintLabel) a mluv"
+        case .toggle:
+            return "Stiskni \(HotkeyPreference.current.hintLabel) pro start i stop diktování"
+        }
+    }
+
     private func setImage(_ symbolName: String, template: Bool, decorativeDescription: String) {
         guard let button = statusItem.button else { return }
         button.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: decorativeDescription)
@@ -306,6 +331,11 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         SMAppService.mainApp.status == .enabled
     }
 
+    @objc private func togglePostProcessing() {
+        PostProcessingPreference.isEnabled.toggle()
+        postProcessingItem.state = PostProcessingPreference.isEnabled ? .on : .off
+    }
+
     @objc private func toggleLaunchAtLogin() {
         do {
             if isLaunchAtLoginEnabled {
@@ -331,6 +361,11 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         onShowLastTranscription?()
     }
 
+    @objc private func showTranscriptionPopover() {
+        guard let button = statusItem.button else { return }
+        onShowTranscriptionPopover?(button)
+    }
+
     @objc private func openLearnedTerms() {
         onOpenLearnedTerms?()
     }
@@ -347,7 +382,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         NSApp.orderFrontStandardAboutPanel(options: [
             .applicationName: "Dictator",
             .applicationVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0",
-            .credits: NSAttributedString(string: "Soukromé české diktování. Bez telemetrie, analytiky a backendu. Historie přepisů zůstává jen v okně do ukončení aplikace.")
+            .credits: NSAttributedString(string: "Soukromé české diktování. Bez telemetrie, analytiky a backendu. Historie přepisů se ukládá lokálně v ~/Library/Application Support/Dictator/ a přežije restart aplikace.")
         ])
         NSApp.activate(ignoringOtherApps: true)
     }

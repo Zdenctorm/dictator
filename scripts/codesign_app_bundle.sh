@@ -6,11 +6,17 @@
 # Usage:
 #   scripts/codesign_app_bundle.sh /path/to/Dictator.app [signing_identity]
 #
-# signing_identity defaults to "-" (ad-hoc). Pass a Developer ID for distribution.
+# signing_identity must be a Developer ID Application certificate (not "-").
 set -euo pipefail
 
-APP_PATH="${1:?Usage: $0 /path/to/Dictator.app [signing_identity]}"
-SIGN_ID="${2:--}"
+APP_PATH="${1:?Usage: $0 /path/to/Dictator.app <signing_identity>}"
+SIGN_ID="${2:?Signing identity required (Developer ID Application: …)}"
+
+if [[ "${SIGN_ID}" == "-" ]]; then
+  echo "Refusing ad-hoc identity: linker-signed Release builds must not be re-signed with '-'." >&2
+  echo "Use the xcodebuild output from build_release.sh as-is, or pass a Developer ID cert." >&2
+  exit 1
+fi
 ENTITLEMENTS="${ENTITLEMENTS:-}"
 
 if [[ ! -d "${APP_PATH}" ]]; then
@@ -26,10 +32,7 @@ if [[ ! -d "${SPARKLE_B}" ]]; then
   exit 1
 fi
 
-TIMESTAMP_ARGS=(--timestamp=none)
-if [[ "${SIGN_ID}" != "-" ]]; then
-  TIMESTAMP_ARGS=(--timestamp)
-fi
+TIMESTAMP_ARGS=(--timestamp)
 
 sign_target() {
   local target="$1"
@@ -64,6 +67,7 @@ sign_target "${SPARKLE_B}/XPCServices/Installer.xpc"
 sign_target "${SPARKLE_B}/Updater.app"
 sign_target "${SPARKLE_B}/Autoupdate"
 sign_target "${SPARKLE_FW}"
+sign_target "${APP_PATH}/Contents/MacOS/Dictator"
 sign_target "${APP_PATH}"
 
 codesign --verify --strict --verbose=2 "${APP_PATH}"
