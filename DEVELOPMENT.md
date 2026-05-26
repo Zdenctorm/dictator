@@ -13,10 +13,31 @@
 
 Vždy stáhni/aktualizuj kód z GitHubu, pak postav a nainstaluj.
 
+### Kde je složka na Macu
+
+Uživatel `anycoin` → domovská složka je `/Users/anycoin`.
+
+Repozitář z build logů je typicky:
+
+```bash
+cd ~/dictator
+# totéž co: cd /Users/anycoin/dictator
+```
+
+**Ne** `cd ~/anycoin/dictator` — to znamená `/Users/anycoin/anycoin/dictator` a ta složka neexistuje.
+
+Najdeš clone:
+
+```bash
+ls ~/dictator/scripts/install_latest.sh
+# nebo: find ~ -maxdepth 3 -name install_latest.sh 2>/dev/null
+```
+
 ### Čistý start (doporučeno, když nevíš co máš lokálně)
 
 ```bash
-git clone https://github.com/Zdenctorm/dictator.git
+cd ~
+git clone https://github.com/Zdenctorm/dictator.git dictator
 cd dictator
 ./scripts/install_latest.sh
 ```
@@ -111,9 +132,27 @@ Nebo v **Xcode → Settings → Platforms / Components** doinstaluj **Metal Tool
 Pak znovu:
 
 ```bash
-cd ~/anycoin/dictator
+cd ~/dictator
+git pull origin main
 ./scripts/install_latest.sh
 ```
+
+### Build selže: `unterminated string literal` u `Vložit`
+
+Starší `main` měl rozbité uvozovky v `AppDelegate.swift`. Oprava je v commitu `4cd08e5` a novějším.
+
+```bash
+cd ~/dictator
+git pull origin main
+git log -1 --oneline   # mělo by být 4cd08e5 nebo novější
+grep 'Vložit' Dictator/App/AppDelegate.swift
+```
+
+Řádek 596 musí končit `„Vložit“"` (česká uzavírací `“`), **ne** `„Vložit""`.
+
+Pak znovu `./scripts/install_latest.sh`.
+
+Při `Failed frontend command` bez jasné chyby scrollni výš v terminálu na řádky začínající `error:`.
 
 Bez Metal Toolchainu nejde zkompilovat MLX; Dictator na `main` ho pro volitelný post-processing potřebuje v buildu vždy.
 

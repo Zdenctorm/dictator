@@ -54,6 +54,22 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
   exit 1
 fi
 
+if [[ ! -f "${ROOT_DIR}/Dictator.xcodeproj/project.pbxproj" ]]; then
+  echo "Tady není Dictator repo: ${ROOT_DIR}" >&2
+  echo "Použij např.: cd ~/dictator && ./scripts/install_latest.sh" >&2
+  echo "(NE cd ~/anycoin/dictator — to zdvojí jméno složky uživatele.)" >&2
+  exit 1
+fi
+
+print_git_head() {
+  if git -C "${ROOT_DIR}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "Git: $(git -C "${ROOT_DIR}" rev-parse --short HEAD) ($(git -C "${ROOT_DIR}" log -1 --format='%s'))"
+  else
+    echo "Git: (není git repo — clone z github.com/Zdenctorm/dictator)" >&2
+    exit 1
+  fi
+}
+
 find_other_copies() {
   local canonical="${1:-}"
   local path
@@ -91,8 +107,13 @@ if [[ "${LIST_ONLY}" == true ]]; then
   exit 0
 fi
 
+echo "Repo: ${ROOT_DIR}"
+print_git_head
+
 if [[ "${PULL}" == true ]]; then
   git -C "${ROOT_DIR}" pull --ff-only origin main
+  echo "Po pull:"
+  print_git_head
 fi
 
 if [[ "${SKIP_BUILD}" != true ]]; then
