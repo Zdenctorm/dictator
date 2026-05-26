@@ -616,8 +616,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
                 let injectResult = await pasteWithWatchdog(text: finalText, into: targetApp, trigger: trigger)
                 await MainActor.run { [weak self] in
-                    self?.stateMachine.transition(to: .idle)
                     self?.finalizeInjectUI(injectResult, trigger: trigger)
+                    self?.stateMachine.transition(to: .idle)
                 }
             } catch let error as TranscriptionError {
                 try? FileManager.default.removeItem(at: capture.url)
@@ -713,6 +713,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         launchWindowController?.focusTranscriptionPanel()
     }
 
+    private func showTranscriptionPopover(from statusButton: NSStatusBarButton) {
+        let entry = transcriptionHistory.first
+        statusBarPopover.show(
+            relativeTo: statusButton,
+            entry: entry,
+            onCopy: { [weak self] in
+                guard let text = entry?.text else { return }
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
+                self?.statusBarController.showTransientStatus("Zkopírováno", duration: 2)
+            },
+            onInsert: { [weak self] in
+                guard let text = entry?.text else { return }
+                self?.startBackgroundInject(text: text, trigger: "menu-popover")
+            }
+        )
+    }
+
     /// Runs paste pipeline with a watchdog; safe from any executor.
     private func pasteWithWatchdog(text: String, into targetApp: NSRunningApplication?, trigger: String) async -> TextInjectResult {
         let watchdog = DispatchWorkItem { [weak self] in
@@ -741,8 +759,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func finalizeInjectUI(_ injectResult: TextInjectResult, trigger: String) {
         if injectResult.succeeded {
             DiagnosticsLogger.log("Paste: background inject succeeded (\(trigger))")
+            recordingOverlay.show(.injectionSuccess)
+            recordingOverlay.scheduleAutoHide(after: 0.7)
         } else {
             DiagnosticsLogger.log("Paste: background inject failed (\(trigger))")
+            SoundFeedbackService.playError()
             let reason: String
             if case .failed(let message) = injectResult {
                 reason = message
@@ -884,8 +905,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         await audioRecorder.setSamplesUpdateHandler { [weak self] in
-            guard let self else { return }
-            self.scheduleStreamingPartialUpdate()
+            Task { @MainActor in
+                self?.scheduleStreamingPartialUpdate()
+            }
         }
 
         streamingTranscriptionTask = Task { [weak self] in

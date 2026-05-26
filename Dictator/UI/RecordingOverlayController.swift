@@ -93,8 +93,14 @@ final class RecordingOverlayController {
             show(.injecting)
         case .idle:
             if previous == .injecting, !rightOptionHeld {
-                show(.injectionSuccess)
-                scheduleHide(after: 0.7)
+                switch currentMode {
+                case .injectionSuccess:
+                    scheduleAutoHide(after: 0.7)
+                case .injectionFailed:
+                    break
+                default:
+                    hide()
+                }
             } else if rightOptionHeld {
                 cancelHideDelay()
                 show(.keyHeld)

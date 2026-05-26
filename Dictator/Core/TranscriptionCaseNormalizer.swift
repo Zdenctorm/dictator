@@ -18,8 +18,9 @@ enum TranscriptionCaseNormalizer {
         for term in vocabularyCanonicals {
             let trimmed = term.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { continue }
-            if trimmed == trimmed.uppercased(), trimmed.unicodeScalars.contains(where: \.isLetter) {
-                set.insert(trimmed)
+            let upper = trimmed.uppercased()
+            if upper.contains(where: \.isLetter) {
+                set.insert(upper)
             }
         }
         return set
@@ -56,7 +57,7 @@ enum TranscriptionCaseNormalizer {
         let coreUpper = core.uppercased()
         guard core.count >= 2,
               core == coreUpper,
-              core.unicodeScalars.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }),
+              core.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }),
               !whitelist.contains(coreUpper) else {
             return token
         }
@@ -67,7 +68,7 @@ enum TranscriptionCaseNormalizer {
     private static func splitTrailingPunctuation(_ token: String) -> (String, String) {
         var core = token
         var suffix = ""
-        while let last = core.last, !last.isLetter, !last.isNumber, last != "_" {
+        while let last = core.last, !last.isLetter, !last.isNumber, last != Character("_") {
             suffix = String(last) + suffix
             core.removeLast()
         }
