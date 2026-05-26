@@ -75,3 +75,29 @@ Sparkle určuje „je tohle novější verze?" podle `sparkle:version`. Epoch za
 První DMG pošli ručně (Slack/Drive). Stáhne se z `https://github.com/Zdenctorm/dictator/releases/latest`.
 
 Od té chvíle dostávají všichni další updaty automaticky.
+
+## Notarizace a Developer ID (bez Gatekeeper varování)
+
+Pro firemní distribuci mimo Mac App Store je potřeba **Developer ID Application** certifikát a notarizace DMG. Skript je připravený v repozitáři:
+
+```bash
+export DEVELOPER_ID_APPLICATION='Developer ID Application: Your Name (TEAMID)'
+export NOTARY_KEYCHAIN_PROFILE='notary-profile'   # nebo APPLE_ID + APPLE_TEAM_ID + APP_SPECIFIC_PASSWORD
+
+./scripts/sign_and_notarize.sh
+```
+
+Kroky skriptu ([scripts/sign_and_notarize.sh](scripts/sign_and_notarize.sh)):
+
+1. Release build + DMG (`build_release.sh`, `create_dmg.sh`)
+2. Codesign aplikace a DMG
+3. `notarytool submit --wait`
+4. `stapler staple` na DMG
+
+Ověření prostředí před release:
+
+```bash
+./scripts/verify_distribution_env.sh
+```
+
+Bez notarizace musí uživatelé při prvním spuštění použít pravý klik → Otevřít (viz [OVERVIEW.md](OVERVIEW.md)).

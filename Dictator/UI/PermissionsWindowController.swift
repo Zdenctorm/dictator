@@ -64,6 +64,20 @@ final class PermissionsWindowController: NSWindowController {
     )
     private var keyTestHintTimer: Timer?
     private let hotkeyPicker = NSPopUpButton(frame: .zero, pullsDown: false)
+    private let activationPicker = NSPopUpButton(frame: .zero, pullsDown: false)
+    private let activationDetailLabel = AppTheme.label("", font: AppTheme.Font.body, color: AppTheme.Color.body, lines: 0)
+    private let modelPicker = NSPopUpButton(frame: .zero, pullsDown: false)
+    private let modelDetailLabel = AppTheme.label("", font: AppTheme.Font.body, color: AppTheme.Color.body, lines: 0)
+    private let postProcessingSizePicker = NSPopUpButton(frame: .zero, pullsDown: false)
+    private let postProcessingSizeDetailLabel = AppTheme.label("", font: AppTheme.Font.body, color: AppTheme.Color.body, lines: 0)
+    private let microphonePicker = NSPopUpButton(frame: .zero, pullsDown: false)
+    private let showInDockCheckbox = NSButton(checkboxWithTitle: "Zobrazit ikonu v Docku", target: nil, action: nil)
+    private let reviewBeforePasteCheckbox = NSButton(
+        checkboxWithTitle: "Nejdřív zkontrolovat přepis (bez automatického vložení)",
+        target: nil,
+        action: nil
+    )
+    private let soundFeedbackCheckbox = NSButton(checkboxWithTitle: "Zvuková zpětná vazba", target: nil, action: nil)
 
     init() {
         let window = NSWindow(
@@ -72,7 +86,7 @@ final class PermissionsWindowController: NSWindowController {
             backing: .buffered,
             defer: false
         )
-        AppTheme.configureMainWindow(window, title: "Nastavení Dictatoru")
+        AppTheme.configureMainWindow(window, title: "Nastavení")
 
         super.init(window: window)
 
@@ -91,6 +105,7 @@ final class PermissionsWindowController: NSWindowController {
         AppWindowPresenter.activateApp()
         AppWindowPresenter.present(window)
         bundlePathLabel.stringValue = "Aktuální kopie: \(Bundle.main.bundleURL.path)"
+        refreshMicrophonePicker()
         requestAccessibilityPromptIfNeeded()
     }
 
@@ -153,6 +168,144 @@ final class PermissionsWindowController: NSWindowController {
         DiagnosticsLogger.log("Hotkey preference changed to \(HotkeyChoice.allCases[idx].rawValue)")
     }
 
+    private func buildModelCard() -> NSView {
+        modelPicker.removeAllItems()
+        modelPicker.addItems(withTitles: TranscriptionModelPreference.allCases.map(\.label))
+        let currentIndex = TranscriptionModelPreference.allCases.firstIndex(of: TranscriptionModelPreference.current) ?? 0
+        modelPicker.selectItem(at: currentIndex)
+        modelPicker.target = self
+        modelPicker.action = #selector(modelPreferenceChanged(_:))
+
+        let title = AppTheme.label("Model přepisu (Whisper)", font: AppTheme.Font.headline, color: AppTheme.Color.title)
+        let speedNote = AppTheme.label(
+            "Turbo = rychlejší odezva při držení klávesy (streaming). Přesnost = lepší pro technické termíny, pomalejší.",
+            font: AppTheme.Font.footnote,
+            color: AppTheme.Color.body,
+            lines: 0
+        )
+        modelDetailLabel.stringValue = TranscriptionModelPreference.current.detail
+
+        return AppTheme.card([title, speedNote, modelDetailLabel, modelPicker])
+    }
+
+
+    private func buildActivationCard() -> NSView {
+        activationPicker.removeAllItems()
+        activationPicker.addItems(withTitles: DictationActivationMode.allCases.map(\.label))
+        let idx = DictationActivationMode.allCases.firstIndex(of: DictationActivationPreference.current) ?? 0
+        activationPicker.selectItem(at: idx)
+        activationPicker.target = self
+        activationPicker.action = #selector(activationModeChanged(_:))
+        activationDetailLabel.stringValue = DictationActivationPreference.current.detail
+        let title = AppTheme.label("Způsob aktivace", font: AppTheme.Font.headline, color: AppTheme.Color.title)
+        return AppTheme.card([title, activationDetailLabel, activationPicker])
+    }
+
+    @objc private func activationModeChanged(_ sender: NSPopUpButton) {
+        let idx = sender.indexOfSelectedItem
+        guard idx >= 0, idx < DictationActivationMode.allCases.count else { return }
+        DictationActivationPreference.current = DictationActivationMode.allCases[idx]
+        activationDetailLabel.stringValue = DictationActivationPreference.current.detail
+    }
+
+    private func buildPostProcessingCard() -> NSView {
+        postProcessingSizePicker.removeAllItems()
+        postProcessingSizePicker.addItems(withTitles: PostProcessingModelSize.allCases.map(\.label))
+        let idx = PostProcessingModelSize.allCases.firstIndex(of: PostProcessingPreference.modelSize) ?? 0
+        postProcessingSizePicker.selectItem(at: idx)
+        postProcessingSizePicker.target = self
+        postProcessingSizePicker.action = #selector(postProcessingSizeChanged(_:))
+        postProcessingSizeDetailLabel.stringValue = PostProcessingPreference.modelSize.detail
+        let title = AppTheme.label("AI oprava přepisu (lokální LLM)", font: AppTheme.Font.headline, color: AppTheme.Color.title)
+        let detail = AppTheme.label(
+            "Zapni/vypni v menu baru. Velikost modelu ovlivní kvalitu a rychlost offline úprav textu.",
+            font: AppTheme.Font.body,
+            color: AppTheme.Color.body,
+            lines: 0
+        )
+        return AppTheme.card([title, detail, postProcessingSizeDetailLabel, postProcessingSizePicker])
+    }
+
+    @objc private func postProcessingSizeChanged(_ sender: NSPopUpButton) {
+        let idx = sender.indexOfSelectedItem
+        guard idx >= 0, idx < PostProcessingModelSize.allCases.count else { return }
+        PostProcessingPreference.modelSize = PostProcessingModelSize.allCases[idx]
+        postProcessingSizeDetailLabel.stringValue = PostProcessingPreference.modelSize.detail
+    }
+
+    private func buildMicrophoneCard() -> NSView {
+        refreshMicrophonePicker()
+        microphonePicker.target = self
+        microphonePicker.action = #selector(microphoneChanged(_:))
+        let title = AppTheme.label("Mikrofon", font: AppTheme.Font.headline, color: AppTheme.Color.title)
+        let detail = AppTheme.label(
+            "Výchozí systémový vstup nebo konkrétní zařízení. Platí pro další nahrávání.",
+            font: AppTheme.Font.body,
+            color: AppTheme.Color.body,
+            lines: 0
+        )
+        return AppTheme.card([title, detail, microphonePicker])
+    }
+
+    private func refreshMicrophonePicker() {
+        microphonePicker.removeAllItems()
+        microphonePicker.addItem(withTitle: "Systémový výchozí")
+        for device in MicrophonePreference.discoveredDevices() {
+            microphonePicker.addItem(withTitle: device.localizedName)
+            microphonePicker.lastItem?.representedObject = device.uniqueID
+        }
+        if let uid = MicrophonePreference.selectedDeviceUID,
+           let idx = (0 ..< microphonePicker.numberOfItems).first(where: { i in
+               (microphonePicker.item(at: i)?.representedObject as? String) == uid
+           }) {
+            microphonePicker.selectItem(at: idx)
+        } else {
+            microphonePicker.selectItem(at: 0)
+        }
+    }
+
+    @objc private func microphoneChanged(_ sender: NSPopUpButton) {
+        if sender.indexOfSelectedItem <= 0 {
+            MicrophonePreference.selectedDeviceUID = nil
+        } else {
+            MicrophonePreference.selectedDeviceUID = sender.selectedItem?.representedObject as? String
+        }
+    }
+
+    private func buildBehaviorCard() -> NSView {
+        showInDockCheckbox.state = AppAppearancePreference.showInDock ? .on : .off
+        showInDockCheckbox.target = self
+        showInDockCheckbox.action = #selector(showInDockChanged(_:))
+        reviewBeforePasteCheckbox.state = DictationReviewPreference.isEnabled ? .on : .off
+        reviewBeforePasteCheckbox.target = self
+        reviewBeforePasteCheckbox.action = #selector(reviewBeforePasteChanged(_:))
+        soundFeedbackCheckbox.state = SoundFeedbackService.isEnabled ? .on : .off
+        soundFeedbackCheckbox.target = self
+        soundFeedbackCheckbox.action = #selector(soundFeedbackChanged(_:))
+        let title = AppTheme.label("Chování aplikace", font: AppTheme.Font.headline, color: AppTheme.Color.title)
+        return AppTheme.card([title, showInDockCheckbox, reviewBeforePasteCheckbox, soundFeedbackCheckbox])
+    }
+
+    @objc private func showInDockChanged(_ sender: NSButton) {
+        AppAppearancePreference.showInDock = sender.state == .on
+    }
+
+    @objc private func reviewBeforePasteChanged(_ sender: NSButton) {
+        DictationReviewPreference.isEnabled = sender.state == .on
+    }
+
+    @objc private func soundFeedbackChanged(_ sender: NSButton) {
+        SoundFeedbackService.isEnabled = sender.state == .on
+    }
+
+    @objc private func modelPreferenceChanged(_ sender: NSPopUpButton) {
+        let idx = sender.indexOfSelectedItem
+        guard idx >= 0, idx < TranscriptionModelPreference.allCases.count else { return }
+        TranscriptionModelPreference.current = TranscriptionModelPreference.allCases[idx]
+        DiagnosticsLogger.log("Model preference changed to \(TranscriptionModelPreference.allCases[idx].rawValue)")
+        modelDetailLabel.stringValue = TranscriptionModelPreference.current.detail
+    }
+
     private func buildUI() {
         let logo = AppLogoView()
         logo.translatesAutoresizingMaskIntoConstraints = false
@@ -209,6 +362,11 @@ final class PermissionsWindowController: NSWindowController {
         )
 
         let hotkeyCard = buildHotkeyCard()
+        let activationCard = buildActivationCard()
+        let modelCard = buildModelCard()
+        let postProcessingCard = buildPostProcessingCard()
+        let microphoneCard = buildMicrophoneCard()
+        let behaviorCard = buildBehaviorCard()
 
         keyTestStatusLabel.setAccessibilityLabel("Test diktovací klávesy")
         let keyTestCard = AppTheme.card([
@@ -242,6 +400,11 @@ final class PermissionsWindowController: NSWindowController {
                 microphoneRow,
                 accessibilityRow,
                 hotkeyCard,
+                activationCard,
+                modelCard,
+                postProcessingCard,
+                microphoneCard,
+                behaviorCard,
                 keyTestCard,
                 footerButtons,
                 helper
