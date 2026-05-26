@@ -1,18 +1,39 @@
 # Dictator — vývoj na Macu
 
-## Jedna kopie aplikace (doporučeno)
+## Zdroj pravdy: GitHub `main`
 
-Na Macu snadno vznikne víc kopií `Dictator.app` (Xcode DerivedData, `dist/`, starý DMG v `/Applications`, kopie na ploše). macOS pak v **Zpřístupnění** ukazuje jinou aplikaci, než kterou právě spouštíš — diktování a oprávnění působí „rozbitě“.
+**Aktuální Dictator = větev `main` na https://github.com/Zdenctorm/dictator**
 
-**Pravidlo:** vždy jedna kanonická instalace v `/Applications/Dictator.app`, aktualizovaná z repa.
+| Co *není* „aktuální“ | Proč |
+|---|---|
+| DMG z [GitHub Releases](https://github.com/Zdenctorm/dictator/releases) | Release vzniká ručně; `main` je často novější |
+| Sparkle update v menu | Appcast sleduje poslední release, ne každý commit na `main` |
+| Starý clone na disku | Lokální soubory bez `git pull` zaostávají |
+| Build z Xcode (⌘R) | Jiná cesta v DerivedData, ne `/Applications` |
+
+Vždy stáhni/aktualizuj kód z GitHubu, pak postav a nainstaluj.
+
+### Čistý start (doporučeno, když nevíš co máš lokálně)
 
 ```bash
-cd ~/path/to/dictator   # tvůj clone
-git pull origin main
+git clone https://github.com/Zdenctorm/dictator.git
+cd dictator
 ./scripts/install_latest.sh
 ```
 
-Volitelně v jednom kroku:
+### Už máš složku — srovnej s GitHubem a přeinstaluj
+
+```bash
+cd ~/path/to/dictator
+git fetch origin
+git checkout main
+git reset --hard origin/main
+./scripts/install_latest.sh
+```
+
+`reset --hard` zahodí lokální necommitnuté změny. Pokud je nechceš ztratit, místo toho použij `git pull --ff-only origin main`.
+
+Jedním příkazem (jen fast-forward pull, bez resetu):
 
 ```bash
 ./scripts/install_latest.sh --pull
@@ -60,10 +81,9 @@ Otevři `Dictator.xcodeproj`. Pro běžné testování funkcí preferuj `install
 
 ## Stabilní verze pro kolegy (DMG + Sparkle)
 
-- Release: `./scripts/release.sh <verze>` — viz [RELEASING.md](RELEASING.md)
-- Stažený DMG: [GitHub Releases](https://github.com/Zdenctorm/dictator/releases/latest)
+Až vydáš release skriptem `./scripts/release.sh`, kolegové dostanou DMG a Sparkle update. Do té doby je pro tebe platný jen postup výše z **`origin/main`**.
 
-**Poznámka:** `main` může být napřed před posledním GitHub releasem. Pro nejnovější kód z repa vždy `install_latest.sh`, ne starý DMG.
+Viz [RELEASING.md](RELEASING.md).
 
 ## Diagnostika
 
