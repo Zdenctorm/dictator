@@ -14,6 +14,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     var onOpenLearnedTerms: (() -> Void)?
     var onMenuWillOpen: (() -> Void)?
     var onShowTranscriptionPopover: ((NSStatusBarButton) -> Void)?
+    var onStatusItemClick: ((NSStatusBarButton) -> Void)?
 
     var statusButton: NSStatusBarButton? { statusItem.button }
 
@@ -26,12 +27,15 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private var transientResetTimer: Timer?
     private var baseStatusTitle = "Spouštím"
     private var lastAnnouncedState: DictatorState?
+    private var modelDownloadProgressPercent: Int?
+    private var recentTranscriptionsSelectHandler: ((String) -> Void)?
 
     private let statusMenuItem = NSMenuItem(title: "Spouštím", action: nil, keyEquivalent: "")
     private let hintMenuItem = NSMenuItem(title: "Podrž diktovací klávesu a mluv", action: nil, keyEquivalent: "")
     private let dictationMenuItem = NSMenuItem(title: "Začít diktování (bez klávesy)", action: #selector(toggleDictation), keyEquivalent: "")
     private let testTranscriptionMenuItem = NSMenuItem(title: "Ověřit přepis (ukáže text)", action: #selector(runTranscriptionTest), keyEquivalent: "")
     private let lastTranscriptionMenuItem = NSMenuItem(title: "Poslední přepis…", action: #selector(showLastTranscription), keyEquivalent: "")
+    private let recentTranscriptionsMenuItem = NSMenuItem(title: "Poslední přepisy", action: nil, keyEquivalent: "")
     private let launchAtLoginItem = NSMenuItem(title: "Spouštět po přihlášení", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
     private let postProcessingItem = NSMenuItem(title: "Oprava přepisu pomocí AI (lokální LLM)", action: #selector(togglePostProcessing), keyEquivalent: "")
 
@@ -79,6 +83,9 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
         lastTranscriptionMenuItem.target = self
         menu.addItem(lastTranscriptionMenuItem)
+
+        recentTranscriptionsMenuItem.submenu = NSMenu()
+        menu.addItem(recentTranscriptionsMenuItem)
 
         let popoverItem = NSMenuItem(
             title: "Rychlý náhled přepisu",
@@ -144,7 +151,60 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         if let button = statusItem.button {
             button.setAccessibilityRole(.button)
             button.setAccessibilityTitle("Dictator")
+            button.action = #selector(statusBarButtonClicked(_:))
+            button.target = self
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
+    }
+
+    func updateRecentTranscriptions(_ entries: [TranscriptionHistoryEntry], onSelect: @escaping (String) -> Void) {
+        recentTranscriptionsSelectHandler = onSelect
+        let submenu = NSMenu()
+        let recent = Array(entries.prefix(10))
+
+        if recent.isEmpty {
+            let emptyItem = NSMenuItem(title: "Zatím žádné přepisy", action: nil, keyEquivalent: "")
+            emptyItem.isEnabled = false
+            submenu.addItem(emptyItem)
+        } else {
+            for entry in recent {
+                let title = Self.truncatedMenuTitle(entry.text)
+                let item = NSMenuItem(title: title, action: #selector(recentTranscriptionSelected(_:)), keyEquivalent: "")
+                item.target = self
+                item.representedObject = entry.text
+                item.toolTip = Self.menuDateFormatter.string(from: entry.recordedAt)
+                submenu.addItem(item)
+            }
+        }
+
+        recentTranscriptionsMenuItem.submenu = submenu
+    }
+
+    func updateModelDownloadProgress(percent: Int?) {
+        modelDownloadProgressPercent = percent
+        applyStatusButtonTitle()
+    }
+
+    @objc private func statusBarButtonClicked(_ sender: NSStatusBarButton) {
+        guard let event = NSApp.currentEvent else { return }
+
+        switch event.type {
+        case .rightMouseUp:
+            showStatusMenu(from: sender)
+        case .leftMouseUp:
+            if event.modifierFlags.contains(.control) {
+                showStatusMenu(from: sender)
+            } else {
+                onStatusItemClick?(sender)
+            }
+        default:
+            break
+        }
+    }
+
+    private func showStatusMenu(from button: NSStatusBarButton) {
+        guard let menu = statusItem.menu else { return }
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.height), in: button)
     }
 
     func menuWillOpen(_ menu: NSMenu) {
@@ -199,6 +259,13 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private func update(for state: DictatorState) {
         pulseTimer?.invalidate()
         pulseTimer = nil
+
+        switch state {
+        case .modelDownloading(let progress):
+            modelDownloadProgressPercent = Int((progress.fraction * 100).rounded())
+        default:
+            modelDownloadProgressPercent = nil
+        }
 
         baseStatusTitle = state.displayText
         if transientResetTimer == nil {
@@ -304,8 +371,30 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         guard let button = statusItem.button else { return }
         button.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: decorativeDescription)
         button.image?.isTemplate = template
-        button.title = " Dictator"
+        applyStatusButtonTitle()
     }
+
+    private func applyStatusButtonTitle() {
+        guard let button = statusItem.button else { return }
+        if let percent = modelDownloadProgressPercent {
+            button.title = " \(percent)%"
+        } else {
+            button.title = " Dictator"
+        }
+    }
+
+    private static func truncatedMenuTitle(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count > 60 else { return trimmed.isEmpty ? "Prázdný přepis" : trimmed }
+        return String(trimmed.prefix(57)) + "…"
+    }
+
+    private static let menuDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "cs_CZ")
+        formatter.dateFormat = "d. M., HH:mm"
+        return formatter
+    }()
 
     private func startRecordingPulse() {
         var filled = false
@@ -359,6 +448,11 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     @objc private func showLastTranscription() {
         onShowLastTranscription?()
+    }
+
+    @objc private func recentTranscriptionSelected(_ sender: NSMenuItem) {
+        guard let text = sender.representedObject as? String else { return }
+        recentTranscriptionsSelectHandler?(text)
     }
 
     @objc private func showTranscriptionPopover() {
