@@ -549,7 +549,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     finalText = caseNormalized
                 }
 
-                if finalText.isEmpty {
+                // Hlasové interpunkční příkazy („tečka“, „nový řádek“, …) → skutečné znaky před vložením.
+                let injectText = PunctuationCommandProcessor.apply(to: finalText)
+
+                if injectText.isEmpty {
                     try? FileManager.default.removeItem(at: capture.url)
                     await handleTranscriptionFailure(
                         trigger: trigger,
@@ -567,13 +570,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 let entry = TranscriptionHistoryEntry(
                     id: entryID,
                     recordedAt: Date(),
-                    text: finalText,
+                    text: injectText,
                     words: replacedWords,
                     audioCacheURL: cachedAudioURL,
                     targetAppBundleID: targetApp?.bundleIdentifier
                 )
 
-                DiagnosticsLogger.log("Transcription done (\(trigger)); len=\(finalText.count), words=\(replacedWords.count)")
+                DiagnosticsLogger.log("Transcription done (\(trigger)); len=\(injectText.count), words=\(replacedWords.count)")
 
                 if trigger == "test" {
                     await MainActor.run { [weak self] in
@@ -581,7 +584,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         self.transcriptionTestMode = false
                         self.stateMachine.transition(to: .idle)
                     }
-                    self.showTranscriptionTestAlert(text: finalText, errorMessage: nil)
+                    self.showTranscriptionTestAlert(text: injectText, errorMessage: nil)
                     return
                 }
 
@@ -614,7 +617,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
                 guard injectExternally, !reviewBeforePaste else { return }
 
-                let injectResult = await pasteWithWatchdog(text: finalText, into: targetApp, trigger: trigger)
+                let injectResult = await pasteWithWatchdog(text: injectText, into: targetApp, trigger: trigger)
                 await MainActor.run { [weak self] in
                     self?.finalizeInjectUI(injectResult, trigger: trigger)
                     self?.stateMachine.transition(to: .idle)

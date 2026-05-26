@@ -45,7 +45,7 @@ Celý proces od pauznutí klávesy po zobrazení textu trvá **typicky 1–3 sek
 | WAV soubor nahrávky | `/tmp/` na lokálním Macu, smaže se po přepisu |
 | Přepsaný text | RAM aplikace + cíl (libovolná aplikace), historie v okně Dictatoru |
 | Telemetrie / analytika | **Žádná** — neexistuje |
-| Síťová aktivita | **Jediná**: jednorázové stažení Whisper modelu (~3 GB) z Apple's HuggingFace mirroru při prvním spuštění. Po stažení je Dictator plně offline. |
+| Síťová aktivita | **Jediná**: jednorázové stažení Whisper modelu (~630 MB turbo / ~626 MB přesnost) z Apple's HuggingFace mirroru při prvním spuštění. Po stažení je Dictator plně offline. |
 | Cloud / API | Žádné. Dictator nevolá žádný server, OpenAI ani jiný backend. |
 
 ### Entitlements (oprávnění aplikace)
@@ -124,7 +124,7 @@ Aplikace má jen dvě:
 
 ## Známá omezení
 
-- **První spuštění stáhne ~3 GB modelu** — potřeba internet jednorázově
+- **První spuštění stáhne ~630 MB modelu** (turbo, výchozí) — potřeba internet jednorázově; na dobré síti obvykle ~2–5 min
 - **Pouze Apple Silicon** (M1+). Intel Macy nejsou podporované (WhisperKit large-v3 vyžaduje ANE)
 - **Pouze čeština** — jiné jazyky model umí, ale UI ne (lze přidat)
 - **Whisper sám občas chybuje s velikostí písmen** u krátkých technických slov („echo" → „ECHO"). Plánovaný post-process normalizační krok.
@@ -141,7 +141,7 @@ Aplikace má jen dvě:
    - Macos zařve „Apple cannot check this app" → kliknout pravým → Otevřít → Confirm
    - Povolit **mikrofon** (system dialog)
    - Otevřít **System Settings → Privacy & Security → Accessibility → +** → přidat Dictator
-3. Počkat ~5 minut, než se stáhne Whisper model (3 GB)
+3. Počkat ~2–5 minut (dle rychlosti sítě), než se stáhne Whisper model (~630 MB turbo)
 4. Hotovo — drž Option v libovolné aplikaci a diktuj
 
 ### Co kolegové dostanou
@@ -166,7 +166,7 @@ Aplikace má jen dvě:
 - [x] **Post-process velikost písmen**: pravidlová normalizace ALL-CAPS (+ volitelný LLM post-processing)
 - [x] **Backup + restore schránky** kolem Cmd+V — neztratit uživatelův obsah
 - [x] **Smart leading space** při paste doprostřed věty
-- [ ] **Punctuation commands** („tečka", „nový odstavec") — power user feature
+- [x] **Punctuation commands** („tečka", „nový odstavec") — power user feature
 - [x] **HUD error feedback** při selhání injection
 - [x] **Sparkle auto-update** framework
 - [ ] **Apple Developer certifikát + notarizace** pro distribuci bez Gatekeeper warning
