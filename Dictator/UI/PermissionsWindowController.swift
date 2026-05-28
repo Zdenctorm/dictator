@@ -78,6 +78,20 @@ final class PermissionsWindowController: NSWindowController {
         action: nil
     )
     private let soundFeedbackCheckbox = NSButton(checkboxWithTitle: "Zvuková zpětná vazba", target: nil, action: nil)
+    private let livePreviewCheckbox = NSButton(
+        checkboxWithTitle: "Zobrazovat průběžný přepis při držení klávesy",
+        target: nil,
+        action: nil
+    )
+    private let hotkeyTapHealthLabel = AppTheme.label(
+        "",
+        font: AppTheme.Font.footnote,
+        color: AppTheme.Color.body,
+        lines: 0
+    )
+
+    /// Poskytuje stav event tapu (nastaví AppDelegate).
+    var hotkeyHealthProvider: (() -> HotkeyHealth)?
 
     init() {
         let window = NSWindow(
@@ -152,13 +166,13 @@ final class PermissionsWindowController: NSWindowController {
 
         let title = AppTheme.label("Klávesa pro diktování", font: AppTheme.Font.headline, color: AppTheme.Color.title)
         let detail = AppTheme.label(
-            "Defaultně levý nebo pravý Option (⌥). Pokud používáš pravý Option jako AltGr pro české znaky (@, #, &), zvol jinou klávesu.",
+            "Defaultně levý nebo pravý Option (⌥). Na české klávesnici je pravý Option často AltGr (@, #, &) — pak zvol levý Option nebo pravý Command (⌘).",
             font: AppTheme.Font.body,
             color: AppTheme.Color.body,
             lines: 0
         )
 
-        return AppTheme.card([title, detail, hotkeyPicker])
+        return AppTheme.card([title, detail, hotkeyPicker, hotkeyTapHealthLabel])
     }
 
     @objc private func hotkeyChoiceChanged(_ sender: NSPopUpButton) {
@@ -178,7 +192,7 @@ final class PermissionsWindowController: NSWindowController {
 
         let title = AppTheme.label("Model přepisu (Whisper)", font: AppTheme.Font.headline, color: AppTheme.Color.title)
         let speedNote = AppTheme.label(
-            "Turbo = rychlejší odezva při držení klávesy (streaming). Přesnost = lepší pro technické termíny, pomalejší.",
+            "Turbo = rychlejší přepis po puštění klávesy. Přesnost = lepší pro technické termíny, pomalejší.",
             font: AppTheme.Font.footnote,
             color: AppTheme.Color.body,
             lines: 0
@@ -282,8 +296,11 @@ final class PermissionsWindowController: NSWindowController {
         soundFeedbackCheckbox.state = SoundFeedbackService.isEnabled ? .on : .off
         soundFeedbackCheckbox.target = self
         soundFeedbackCheckbox.action = #selector(soundFeedbackChanged(_:))
+        livePreviewCheckbox.state = DictationPreviewPreference.isEnabled ? .on : .off
+        livePreviewCheckbox.target = self
+        livePreviewCheckbox.action = #selector(livePreviewChanged(_:))
         let title = AppTheme.label("Chování aplikace", font: AppTheme.Font.headline, color: AppTheme.Color.title)
-        return AppTheme.card([title, showInDockCheckbox, reviewBeforePasteCheckbox, soundFeedbackCheckbox])
+        return AppTheme.card([title, showInDockCheckbox, reviewBeforePasteCheckbox, livePreviewCheckbox, soundFeedbackCheckbox])
     }
 
     @objc private func showInDockChanged(_ sender: NSButton) {
@@ -296,6 +313,10 @@ final class PermissionsWindowController: NSWindowController {
 
     @objc private func soundFeedbackChanged(_ sender: NSButton) {
         SoundFeedbackService.isEnabled = sender.state == .on
+    }
+
+    @objc private func livePreviewChanged(_ sender: NSButton) {
+        DictationPreviewPreference.isEnabled = sender.state == .on
     }
 
     @objc private func modelPreferenceChanged(_ sender: NSPopUpButton) {
@@ -537,6 +558,29 @@ final class PermissionsWindowController: NSWindowController {
                 : "Přidej tuto kopii Dictator.app do Soukromí a zabezpečení → Zpřístupnění."
         )
         accessibilityButton.isHidden = snapshot.accessibility == .allowed
+        refreshHotkeyTapHealthLabel()
+    }
+
+    private func refreshHotkeyTapHealthLabel() {
+        guard let health = hotkeyHealthProvider?() else {
+            hotkeyTapHealthLabel.stringValue = ""
+            return
+        }
+        switch health {
+        case .notTrusted:
+            hotkeyTapHealthLabel.stringValue = "Klávesu nelze sledovat — nejdřív povol Zpřístupnění pro tuto kopii aplikace."
+            hotkeyTapHealthLabel.textColor = AppTheme.Color.danger
+        case .tapMissing:
+            hotkeyTapHealthLabel.stringValue = "Sledování klávesy není aktivní — restartuj Dictator po povolení Zpřístupnění."
+            hotkeyTapHealthLabel.textColor = AppTheme.Color.warning
+        case .receivingEvents:
+            hotkeyTapHealthLabel.stringValue = "Sledování klávesy je aktivní. Otestuj stiskem níže (funguje i v jiné aplikaci)."
+            hotkeyTapHealthLabel.textColor = AppTheme.Color.success
+        case .stale(let seconds):
+            hotkeyTapHealthLabel.stringValue =
+                "Klávesu dlouho nevidím (\(Int(seconds)) s) — stiskni diktovací klávesu jednou pro probuzení."
+            hotkeyTapHealthLabel.textColor = AppTheme.Color.warning
+        }
     }
 
     @objc private func requestMicrophone() {

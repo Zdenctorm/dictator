@@ -14,6 +14,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     var onOpenLearnedTerms: (() -> Void)?
     var onMenuWillOpen: (() -> Void)?
     var onShowTranscriptionPopover: ((NSStatusBarButton) -> Void)?
+    var hotkeyHealthProvider: (() -> HotkeyHealth)?
 
     var statusButton: NSStatusBarButton? { statusItem.button }
 
@@ -273,6 +274,9 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
 
     private func contextualHint(for state: DictatorState) -> String {
+        if let healthHint = hotkeyHealthHintLine() {
+            return healthHint
+        }
         switch state {
         case .idle:
             return "Podrž \(HotkeyPreference.current.hintLabel) nebo použij položku „Začít diktování“."
@@ -288,6 +292,21 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             return "Doplň oprávnění mikrofon a Zpřístupnění v Nastavení."
         case .error:
             return "Je potřeba zásah — nápověda výše v menu."
+        }
+    }
+
+    private func hotkeyHealthHintLine() -> String? {
+        if stateMachine.isRecording { return nil }
+        guard let health = hotkeyHealthProvider?() else { return nil }
+        switch health {
+        case .notTrusted:
+            return "Zapni Zpřístupnění pro tuto kopii Dictator.app (Nastavení → Soukromí)."
+        case .tapMissing:
+            return "Diktovací klávesa není aktivní — otevři Nastavení Dictatoru."
+        case .stale:
+            return "Dictator neviděl klávesu — stiskni \(HotkeyPreference.current.hintLabel) jednou."
+        case .receivingEvents:
+            return nil
         }
     }
 

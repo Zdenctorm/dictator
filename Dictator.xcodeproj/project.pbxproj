@@ -64,6 +64,11 @@
 		010000000000000000000043 /* TranscriptionCaseNormalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000043 /* TranscriptionCaseNormalizer.swift */; };
 		010000000000000000000044 /* InsertionSpacingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000044 /* InsertionSpacingTests.swift */; };
 		010000000000000000000045 /* TranscriptionCaseNormalizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000045 /* TranscriptionCaseNormalizerTests.swift */; };
+		010000000000000000000049 /* HotkeyTriggerLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000049 /* HotkeyTriggerLogic.swift */; };
+		01000000000000000000004A /* DictationPreviewPreference.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000004A /* DictationPreviewPreference.swift */; };
+		01000000000000000000004B /* CzechDictationFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000004B /* CzechDictationFormatter.swift */; };
+		01000000000000000000004C /* HotkeyTriggerLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000004C /* HotkeyTriggerLogicTests.swift */; };
+		01000000000000000000004D /* CzechDictationFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000004D /* CzechDictationFormatterTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -123,6 +128,11 @@
 		020000000000000000000044 /* InsertionSpacingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsertionSpacingTests.swift; sourceTree = "<group>"; };
 		020000000000000000000045 /* TranscriptionCaseNormalizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionCaseNormalizerTests.swift; sourceTree = "<group>"; };
 		020000000000000000000046 /* HuggingFaceModelLoading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HuggingFaceModelLoading.swift; sourceTree = "<group>"; };
+		020000000000000000000049 /* HotkeyTriggerLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyTriggerLogic.swift; sourceTree = "<group>"; };
+		02000000000000000000004A /* DictationPreviewPreference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationPreviewPreference.swift; sourceTree = "<group>"; };
+		02000000000000000000004B /* CzechDictationFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CzechDictationFormatter.swift; sourceTree = "<group>"; };
+		02000000000000000000004C /* HotkeyTriggerLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyTriggerLogicTests.swift; sourceTree = "<group>"; };
+		02000000000000000000004D /* CzechDictationFormatterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CzechDictationFormatterTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -184,6 +194,9 @@
 			children = (
 				020000000000000000000002 /* AppState.swift */,
 				020000000000000000000003 /* HotkeyManager.swift */,
+				020000000000000000000049 /* HotkeyTriggerLogic.swift */,
+				02000000000000000000004A /* DictationPreviewPreference.swift */,
+				02000000000000000000004B /* CzechDictationFormatter.swift */,
 				020000000000000000000025 /* DictationTargetTracker.swift */,
 				020000000000000000000040 /* SparkleUpdateSupport.swift */,
 				020000000000000000000019 /* PasteInsertionPlan.swift */,
@@ -263,6 +276,8 @@
 				020000000000000000000032 /* PostProcessingPreferenceTests.swift */,
 				020000000000000000000044 /* InsertionSpacingTests.swift */,
 				020000000000000000000045 /* TranscriptionCaseNormalizerTests.swift */,
+				02000000000000000000004C /* HotkeyTriggerLogicTests.swift */,
+				02000000000000000000004D /* CzechDictationFormatterTests.swift */,
 			);
 			path = DictatorTests;
 			sourceTree = "<group>";
@@ -435,6 +450,9 @@
 				01000000000000000000001D /* LearnedTermsView.swift in Sources */,
 				010000000000000000000030 /* PostProcessingPreference.swift in Sources */,
 				010000000000000000000031 /* PostProcessingEngine.swift in Sources */,
+				010000000000000000000049 /* HotkeyTriggerLogic.swift in Sources */,
+				01000000000000000000004A /* DictationPreviewPreference.swift in Sources */,
+				01000000000000000000004B /* CzechDictationFormatter.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -448,6 +466,8 @@
 				010000000000000000000032 /* PostProcessingPreferenceTests.swift in Sources */,
 				010000000000000000000044 /* InsertionSpacingTests.swift in Sources */,
 				010000000000000000000045 /* TranscriptionCaseNormalizerTests.swift in Sources */,
+				01000000000000000000004C /* HotkeyTriggerLogicTests.swift in Sources */,
+				01000000000000000000004D /* CzechDictationFormatterTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -7,6 +7,13 @@ enum HotkeyKey: Sendable {
     case leftOption
 }
 
+enum HotkeyHealth: Equatable, Sendable {
+    case notTrusted
+    case tapMissing
+    case receivingEvents
+    case stale(seconds: TimeInterval)
+}
+
 /// Volba klávesy pro diktování. Persistováno v UserDefaults pod `hotkeyChoice`.
 enum HotkeyChoice: String, CaseIterable {
     case eitherOption
@@ -67,6 +74,10 @@ final class HotkeyManager {
 
     private var isOptionDown = false
     private var triggerPhysicallyDown = false
+    /// Toggle mode: `onKeyDown` fired but AppDelegate has not yet entered `.recording`.
+    private var pendingToggleStart = false
+    /// When true, health check / cross-app prep must not rebuild the event tap.
+    var suppressTapRebuildDuringSession = false
     fileprivate var eventTap: CFMachPort?
 
     private var runLoopSource: CFRunLoopSource?
@@ -142,7 +153,13 @@ final class HotkeyManager {
         // musíme tap zrecyklovat. Pouhé tapEnable nestačí — kernel ho nezpůsobí znova
         // doručovat crossapp eventy.
         if eventTap != nil && !trusted {
-            DiagnosticsLogger.log("Hotkey install called but Accessibility=false — keeping existing tap")
+            tearDownTap()
+            DiagnosticsLogger.log("Hotkey install: Accessibility=false — tap removed")
+            return false
+        }
+
+        guard trusted else {
+            return false
         }
 
         if eventTap == nil {
@@ -157,7 +174,7 @@ final class HotkeyManager {
         return true
     }
 
-    /// Po přepnutí do cizí appky (Cursor, Slack…) obnoví doručování Option — bez agresivní smyčky rebuildů.
+    /// Po přepnutí do cizí appky obnoví tap; rebuild jen při dlouhém tichu (ne při každém switch).
     func prepareForCrossAppUse() {
         guard AccessibilitySettings.isTrusted() else { return }
 
@@ -169,10 +186,84 @@ final class HotkeyManager {
         guard let tap = eventTap else { return }
         CGEvent.tapEnable(tap: tap, enable: true)
 
+        guard !suppressTapRebuildDuringSession else { return }
+
+        let idle = Date().timeIntervalSince(lastEventReceivedAt)
+        guard idle > 45 else { return }
+
         let now = Date()
         guard now.timeIntervalSince(lastCrossAppPrepAt) >= crossAppPrepInterval else { return }
         lastCrossAppPrepAt = now
-        rebuildTap(reason: "cross-app foreground", force: false)
+        rebuildTap(reason: "cross-app stale \(Int(idle))s", force: false)
+    }
+
+    /// Volat těsně před začátkem diktování — opraví tiché úmrtí tapu.
+    func ensureReadyForDictation() {
+        guard AccessibilitySettings.isTrusted() else { return }
+        if eventTap == nil {
+            _ = install()
+            return
+        }
+        guard let tap = eventTap else { return }
+        CGEvent.tapEnable(tap: tap, enable: true)
+
+        let idle = Date().timeIntervalSince(lastEventReceivedAt)
+        if idle > 25 {
+            rebuildTap(reason: "pre-dictation idle \(Int(idle))s", force: true)
+        }
+        lastEventReceivedAt = Date()
+    }
+
+    func markDictationSessionActive(_ active: Bool) {
+        suppressTapRebuildDuringSession = active
+        if active {
+            lastEventReceivedAt = Date()
+        }
+    }
+
+    /// Volá AppDelegate když `beginDictation` neproběhne — reset push i toggle stavu.
+    func resetAfterFailedStart() {
+        pendingToggleStart = false
+        isOptionDown = false
+        triggerPhysicallyDown = false
+        onModifierEvent?(.option, false)
+    }
+
+    /// Ukončení diktování z menu / Esc — bez simulovaného `onKeyUp`.
+    func syncToggleStateAfterExternalStop() {
+        guard activationMode == .toggle else { return }
+        pendingToggleStart = false
+        isOptionDown = false
+    }
+
+    func reinstallAfterAccessibilityGrant() {
+        tearDownTap()
+        _ = install()
+    }
+
+    func currentHealth() -> HotkeyHealth {
+        guard AccessibilitySettings.isTrusted() else { return .notTrusted }
+        guard eventTap != nil else { return .tapMissing }
+        let idle = Date().timeIntervalSince(lastEventReceivedAt)
+        if idle > 8 {
+            return .stale(seconds: idle)
+        }
+        return .receivingEvents
+    }
+
+    /// AppDelegate volá po úspěšném `transition(.recording)` v toggle režimu.
+    func confirmDictationStarted() {
+        pendingToggleStart = false
+        if activationMode == .toggle, !isOptionDown {
+            isOptionDown = true
+        }
+    }
+
+    /// AppDelegate volá když `beginDictation` neproběhne (busy, permissions…).
+    func abortToggleStartIfNeeded() {
+        guard activationMode == .toggle, pendingToggleStart else { return }
+        pendingToggleStart = false
+        onModifierEvent?(.option, false)
     }
 
     /// Vytvoří nový event tap a zaregistruje jeho run-loop source. Voláme i pro rebuild.
@@ -293,7 +384,7 @@ final class HotkeyManager {
     fileprivate func scheduleRebuildAfterUserInput() {
         pendingUserInputRebuild?.cancel()
         let work = DispatchWorkItem { [weak self] in
-            self?.rebuildTap(reason: "tapDisabledByUserInput")
+            self?.rebuildTap(reason: "tapDisabledByUserInput", force: true)
         }
         pendingUserInputRebuild = work
         // Krátká prodleva: necháme macOS dokončit flagsChanged z cizí appky (Cursor, terminál).
@@ -320,6 +411,7 @@ final class HotkeyManager {
         }
 
         guard trusted, let eventTap else { return }
+        guard !suppressTapRebuildDuringSession else { return }
 
         // `tapIsEnabled` u listen-only tapu často lže; rebuildovat jen při callbacku nebo dlouhém tichu.
         if !CGEvent.tapIsEnabled(tap: eventTap) {
@@ -370,29 +462,31 @@ final class HotkeyManager {
             key61Down: snap.key61Down
         )
 
-        let triggerDown: Bool
-        let source: String
-        switch preference {
-        case .eitherOption:
-            triggerDown = snap.alternateDown && (
-                snap.key58Down
-                    || snap.key61Down
-                    || snap.keyCode == Int(Self.leftOptionKeyCode)
-                    || snap.keyCode == Int(Self.rightOptionKeyCode)
-            )
-            source = snap.key61Down ? "rightOption" : (snap.key58Down ? "leftOption" : "keycode-\(snap.keyCode)")
-        case .rightOption:
-            triggerDown = snap.alternateDown && (snap.key61Down || snap.keyCode == Int(Self.rightOptionKeyCode))
-            source = "rightOption"
-        case .leftOption:
-            triggerDown = snap.alternateDown && (snap.key58Down || snap.keyCode == Int(Self.leftOptionKeyCode))
-            source = "leftOption"
-        case .rightCommand:
-            triggerDown = snap.commandDown && (snap.key54Down || snap.keyCode == Int(Self.rightCommandKeyCode))
-            source = "rightCommand"
-        }
+        let logicSnap = HotkeyTriggerLogic.Snapshot(
+            keyCode: snap.keyCode,
+            alternateDown: snap.alternateDown,
+            commandDown: snap.commandDown,
+            key54Down: snap.key54Down,
+            key58Down: snap.key58Down,
+            key61Down: snap.key61Down
+        )
+        let triggerDown = HotkeyTriggerLogic.isTriggerDown(preference: preference, snap: logicSnap)
+        let source: String = {
+            switch preference {
+            case .eitherOption:
+                return snap.key61Down ? "rightOption" : (snap.key58Down ? "leftOption" : "keycode-\(snap.keyCode)")
+            case .rightOption: return "rightOption"
+            case .leftOption: return "leftOption"
+            case .rightCommand: return "rightCommand"
+            }
+        }()
 
-        onWrongModifierHint?(wrongModifierActive(snap))
+        let sessionActive = isOptionDown || pendingToggleStart
+        onWrongModifierHint?(HotkeyTriggerLogic.wrongModifierActive(
+            preference: preference,
+            snap: logicSnap,
+            sessionActive: sessionActive
+        ))
 
         if activationMode == .toggle {
             if triggerDown && !triggerPhysicallyDown {
@@ -403,13 +497,17 @@ final class HotkeyManager {
                     onModifierEvent?(.option, false)
                     onKeyUp?()
                 } else {
-                    isOptionDown = true
+                    pendingToggleStart = true
                     DiagnosticsLogger.log("Hotkey: toggle start (\(source), preference=\(preference.rawValue))")
                     onModifierEvent?(.option, true)
                     onKeyDown?()
                 }
             } else if !triggerDown && triggerPhysicallyDown {
                 triggerPhysicallyDown = false
+                if pendingToggleStart, !isOptionDown {
+                    pendingToggleStart = false
+                    onModifierEvent?(.option, false)
+                }
             }
             return
         }
@@ -437,23 +535,10 @@ final class HotkeyManager {
         }
     }
 
-    private func wrongModifierActive(_ snap: ModifierSnapshot) -> Bool {
-        guard !isOptionDown else { return false }
-        switch preference {
-        case .eitherOption:
-            return false
-        case .rightOption:
-            return snap.alternateDown && snap.key58Down && !snap.key61Down
-        case .leftOption:
-            return snap.alternateDown && snap.key61Down && !snap.key58Down
-        case .rightCommand:
-            return snap.alternateDown && (snap.key58Down || snap.key61Down)
-        }
-    }
-
     func cancelToggleSessionIfNeeded() {
         guard activationMode == .toggle, isOptionDown else { return }
         isOptionDown = false
+        pendingToggleStart = false
         triggerPhysicallyDown = false
         onModifierEvent?(.option, false)
         onKeyUp?()
