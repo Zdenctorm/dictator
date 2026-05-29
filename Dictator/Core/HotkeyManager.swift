@@ -291,7 +291,7 @@ final class HotkeyManager {
         tearDownTap()
 
         let mask: CGEventMask = 1 << CGEventType.flagsChanged.rawValue
-        let locations: [CGEventTapLocation] = [.cgHIDEventTap, .cgSessionEventTap]
+        let locations: [CGEventTapLocation] = [.cghidEventTap, .cgSessionEventTap]
         var tap: CFMachPort?
         for location in locations {
             tap = CGEvent.tapCreate(
@@ -303,7 +303,7 @@ final class HotkeyManager {
                 userInfo: Unmanaged.passUnretained(self).toOpaque()
             )
             if tap != nil {
-                DiagnosticsLogger.log("Hotkey event tap created at \(location == .cgHIDEventTap ? "HID" : "session")")
+                DiagnosticsLogger.log("Hotkey event tap created at \(location == .cghidEventTap ? "HID" : "session")")
                 break
             }
         }

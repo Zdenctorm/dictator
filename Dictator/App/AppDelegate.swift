@@ -45,7 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let logger = Logger(subsystem: "com.example.dictator", category: "app")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        keepAliveActivity = ProcessInfo.processInfo.performActivity(
+        keepAliveActivity = ProcessInfo.processInfo.beginActivity(
             options: [.userInitiated, .idleSystemSleepDisabled],
             reason: "Dictator global hotkey monitoring"
         )
@@ -126,10 +126,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         if PermissionsWindowController.currentSnapshot.allGranted {
             if !installHotkeyIfPossible() {
-                let message = if !InputMonitoringSettings.isGranted() {
-                    "Chybí Monitorování vstupu — klávesa funguje jen s oknem Dictatoru. Otevři Nastavení."
+                let message: String
+                if !InputMonitoringSettings.isGranted() {
+                    message = "Chybí Monitorování vstupu — klávesa funguje jen s oknem Dictatoru. Otevři Nastavení."
                 } else {
-                    "Chybí Zpřístupnění — diktovací klávesa nebude fungovat v jiných aplikacích."
+                    message = "Chybí Zpřístupnění — diktovací klávesa nebude fungovat v jiných aplikacích."
                 }
                 statusBarController.showTransientStatus(message, duration: 10)
                 showPermissionsWindow()
@@ -207,6 +208,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        if let keepAliveActivity {
+            ProcessInfo.processInfo.endActivity(keepAliveActivity)
+        }
         startupTask?.cancel()
         historySaveTimer?.invalidate()
         audioCachePurgeTimer?.invalidate()
