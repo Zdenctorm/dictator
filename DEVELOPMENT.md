@@ -64,6 +64,9 @@ Na feature větvi (např. `cursor/hotkey-ux-formatting-7dec`) stáhne tu větev,
 Bez `--pull` skript skončí chybou, pokud jsi za `origin/<aktuální-větev>`.
 Pro plný překlad po změně Swiftu: `./scripts/install_latest.sh --pull --clean`.
 
+Pokud skript nezná `--clean`, nejdřív jednou ručně: `git pull --ff-only origin $(git branch --show-current)`.
+Alternativa: `./scripts/update_and_install.sh --pull --clean` (pull + install v jednom).
+
 ### Co skript dělá
 
 1. Postaví Release do `dist/Dictator.app` (`build_release.sh`)

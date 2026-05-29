@@ -4,6 +4,33 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+
+# When the checkout is behind origin, pull and re-exec so new script flags (e.g. --clean) work.
+maybe_reexec_if_behind_origin() {
+  [[ "${DICTATOR_INSTALL_REEXEC:-0}" == "1" ]] && return 0
+  git -C "${ROOT_DIR}" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
+
+  local branch
+  branch="$(git -C "${ROOT_DIR}" symbolic-ref -q --short HEAD 2>/dev/null || true)"
+  [[ -n "${branch}" ]] || return 0
+
+  git -C "${ROOT_DIR}" fetch origin "${branch}" 2>/dev/null || return 0
+
+  local upstream="origin/${branch}"
+  git -C "${ROOT_DIR}" rev-parse --verify "${upstream}" >/dev/null 2>&1 || return 0
+
+  local behind
+  behind="$(git -C "${ROOT_DIR}" rev-list --count "HEAD..${upstream}" 2>/dev/null || echo 0)"
+  [[ "${behind}" -gt 0 ]] || return 0
+
+  echo "Repo je ${behind} commit(y) za ${upstream}; stahuji a spouštím instalaci znovu…"
+  git -C "${ROOT_DIR}" pull --ff-only origin "${branch}"
+  export DICTATOR_INSTALL_REEXEC=1
+  exec "${ROOT_DIR}/scripts/$(basename "${SCRIPT_PATH}")" "$@"
+}
+maybe_reexec_if_behind_origin "$@"
+
 BUILT_APP="${ROOT_DIR}/dist/Dictator.app"
 INSTALL_PATH="${DICTATOR_INSTALL_PATH:-/Applications/Dictator.app}"
 PULL=false
@@ -46,6 +73,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     *)
       echo "Unknown option: $1" >&2
+      if [[ "$1" == "--clean" ]]; then
+        echo "Tip: nejdřív aktualizuj repo (skript je starší než origin):" >&2
+        echo "  git pull --ff-only origin $(git -C "${ROOT_DIR}" symbolic-ref -q --short HEAD 2>/dev/null || echo '<větev>')" >&2
+      fi
       usage >&2
       exit 1
       ;;
