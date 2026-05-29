@@ -188,6 +188,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func cancelActiveDictation() {
         guard stateMachine.isRecording else { return }
+        hotkeyManager.markDictationSessionActive(false)
         hotkeyManager.cancelToggleSessionIfNeeded()
         microphoneArmTask?.cancel()
         microphoneArmTask = nil

@@ -187,7 +187,9 @@ final class HotkeyManager {
         DiagnosticsLogger.log("Hotkey event tap enabled (AXTrusted=\(trusted))")
 
         startHealthCheck()
-        startKeyStatePoller()
+        if keyStatePoller == nil {
+            startKeyStatePoller()
+        }
         return true
     }
 
@@ -320,6 +322,7 @@ final class HotkeyManager {
         if let runLoopSource {
             CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
         }
+        startKeyStatePoller()
         DiagnosticsLogger.log("Hotkey event tap created (listenOnly, single ingress)")
         return true
     }
