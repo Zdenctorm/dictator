@@ -16,7 +16,12 @@
 		010000000000000000000006 /* TextInjector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000006 /* TextInjector.swift */; };
 		01000000000000000000000F /* DiagnosticsLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000012 /* DiagnosticsLogger.swift */; };
 		010000000000000000000007 /* StatusBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000007 /* StatusBarController.swift */; };
-		010000000000000000000008 /* PermissionsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000008 /* PermissionsWindowController.swift */; };
+		010000000000000000000052 /* PermissionsSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000052 /* PermissionsSnapshot.swift */; };
+		010000000000000000000053 /* SetupWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000053 /* SetupWindowController.swift */; };
+		010000000000000000000054 /* PreferencesWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000054 /* PreferencesWindowController.swift */; };
+		010000000000000000000055 /* PreferencesPanelBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000055 /* PreferencesPanelBuilder.swift */; };
+		010000000000000000000056 /* PermissionsPanelBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000056 /* PermissionsPanelBuilder.swift */; };
+		010000000000000000000057 /* RecordingLevelMeterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000057 /* RecordingLevelMeterView.swift */; };
 		01000000000000000000000A /* LaunchWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000C /* LaunchWindowController.swift */; };
 		01000000000000000000000B /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000D /* AppTheme.swift */; };
 		01000000000000000000000D /* AppLogoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000010 /* AppLogoView.swift */; };
@@ -86,7 +91,12 @@
 		020000000000000000000006 /* TextInjector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInjector.swift; sourceTree = "<group>"; };
 		020000000000000000000012 /* DiagnosticsLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsLogger.swift; sourceTree = "<group>"; };
 		020000000000000000000007 /* StatusBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBarController.swift; sourceTree = "<group>"; };
-		020000000000000000000008 /* PermissionsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsWindowController.swift; sourceTree = "<group>"; };
+		020000000000000000000052 /* PermissionsSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsSnapshot.swift; sourceTree = "<group>"; };
+		020000000000000000000053 /* SetupWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupWindowController.swift; sourceTree = "<group>"; };
+		020000000000000000000054 /* PreferencesWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesWindowController.swift; sourceTree = "<group>"; };
+		020000000000000000000055 /* PreferencesPanelBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesPanelBuilder.swift; sourceTree = "<group>"; };
+		020000000000000000000056 /* PermissionsPanelBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsPanelBuilder.swift; sourceTree = "<group>"; };
+		020000000000000000000057 /* RecordingLevelMeterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingLevelMeterView.swift; sourceTree = "<group>"; };
 		020000000000000000000009 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		02000000000000000000000A /* Dictator.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Dictator.entitlements; sourceTree = "<group>"; };
 		02000000000000000000000B /* Dictator.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Dictator.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -247,7 +257,12 @@
 				020000000000000000000010 /* AppLogoView.swift */,
 				020000000000000000000007 /* StatusBarController.swift */,
 				020000000000000000000039 /* StatusBarPopoverController.swift */,
-				020000000000000000000008 /* PermissionsWindowController.swift */,
+				020000000000000000000052 /* PermissionsSnapshot.swift */,
+				020000000000000000000053 /* SetupWindowController.swift */,
+				020000000000000000000054 /* PreferencesWindowController.swift */,
+				020000000000000000000055 /* PreferencesPanelBuilder.swift */,
+				020000000000000000000056 /* PermissionsPanelBuilder.swift */,
+				020000000000000000000057 /* RecordingLevelMeterView.swift */,
 				02000000000000000000000C /* LaunchWindowController.swift */,
 				020000000000000000000013 /* RecordingOverlayController.swift */,
 				020000000000000000000014 /* TranscriptionPanelView.swift */,
@@ -443,7 +458,12 @@
 				01000000000000000000000F /* DiagnosticsLogger.swift in Sources */,
 				010000000000000000000007 /* StatusBarController.swift in Sources */,
 				01000000000000000000003D /* StatusBarPopoverController.swift in Sources */,
-				010000000000000000000008 /* PermissionsWindowController.swift in Sources */,
+				010000000000000000000052 /* PermissionsSnapshot.swift in Sources */,
+				010000000000000000000053 /* SetupWindowController.swift in Sources */,
+				010000000000000000000054 /* PreferencesWindowController.swift in Sources */,
+				010000000000000000000055 /* PreferencesPanelBuilder.swift in Sources */,
+				010000000000000000000056 /* PermissionsPanelBuilder.swift in Sources */,
+				010000000000000000000057 /* RecordingLevelMeterView.swift in Sources */,
 				01000000000000000000000A /* LaunchWindowController.swift in Sources */,
 				01000000000000000000000B /* AppTheme.swift in Sources */,
 				010000000000000000000022 /* AccessibilitySupport.swift in Sources */,

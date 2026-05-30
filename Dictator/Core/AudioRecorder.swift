@@ -30,6 +30,13 @@ actor AudioRecorder {
         return await session.audioSamplesSnapshot()
     }
 
+    /// Normalizovaná úroveň signálu (0…1) pro live HUD během nahrávání.
+    func currentAudioLevel() async -> Float {
+        guard let session else { return 0 }
+        let peak = await session.peakRMS()
+        return min(1, peak * 12)
+    }
+
     func startRecording() throws {
         guard session == nil else { return }
 

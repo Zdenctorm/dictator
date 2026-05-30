@@ -21,4 +21,4 @@ Před jakoukoli UX/UI změnou v menu baru, oknech nebo HUD:
 4. North Star: **The Quiet Study** (claret + cream, minimum vizuálního hluku).
 5. Pro design review použij `/impeccable critique <soubor>` — ne `/impeccable live` (AppKit, ne HTML).
 
-Primární surface: `StatusBarController`, `PermissionsWindowController`, `RecordingOverlayController`, `AppTheme.swift`.
+Primární surface: `StatusBarController`, `SetupWindowController`, `PreferencesWindowController`, `RecordingOverlayController`, `AppTheme.swift`.

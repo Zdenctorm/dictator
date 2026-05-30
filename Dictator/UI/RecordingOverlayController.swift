@@ -15,12 +15,18 @@ enum RecordingOverlayMode: Equatable {
 
 @MainActor
 final class RecordingOverlayController {
+    var onCancelRecording: (() -> Void)?
+    var audioLevelProvider: (() async -> Float)?
+
     private var panel: NSPanel?
     private let statusLabel = NSTextField(labelWithString: "")
     private let previewLabel = NSTextField(labelWithString: "")
+    private let escHintLabel = NSTextField(labelWithString: "")
+    private let levelMeter = RecordingLevelMeterView()
     private let dotView = NSView()
     private let statusRow = NSStackView()
     private var pulseTimer: Timer?
+    private var levelTimer: Timer?
     private var currentMode: RecordingOverlayMode = .hidden
     private var lastSyncedState: DictatorState = .idle
     private var hideDelayTimer: Timer?
@@ -42,8 +48,11 @@ final class RecordingOverlayController {
         currentMode = .hidden
         pulseTimer?.invalidate()
         pulseTimer = nil
+        stopLevelMeter()
         previewLabel.stringValue = ""
         previewLabel.isHidden = true
+        levelMeter.isHidden = true
+        levelMeter.reset()
         panel?.orderOut(nil)
     }
 
@@ -152,7 +161,7 @@ final class RecordingOverlayController {
         guard panel == nil else { return }
 
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 72),
+            contentRect: NSRect(x: 0, y: 0, width: 440, height: 88),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -197,7 +206,15 @@ final class RecordingOverlayController {
         previewLabel.isHidden = true
         previewLabel.setAccessibilityElement(false)
 
-        let textColumn = NSStackView(views: [statusLabel, previewLabel])
+        escHintLabel.font = AppTheme.Font.footnote
+        escHintLabel.textColor = AppTheme.Color.body.withAlphaComponent(0.8)
+        escHintLabel.stringValue = "Esc — zrušit nahrávání"
+        escHintLabel.isHidden = true
+        escHintLabel.setAccessibilityElement(false)
+
+        levelMeter.isHidden = true
+
+        let textColumn = NSStackView(views: [statusLabel, previewLabel, levelMeter, escHintLabel])
         textColumn.orientation = .vertical
         textColumn.alignment = .leading
         textColumn.spacing = 4
@@ -253,16 +270,28 @@ final class RecordingOverlayController {
     }
 
     private func apply(_ mode: RecordingOverlayMode) {
+        let showsRecordingUI = mode == .recording || isStreamingPreviewMode(mode)
+        if !showsRecordingUI {
+            escHintLabel.isHidden = true
+            levelMeter.isHidden = true
+        }
+
         switch mode {
         case .keyHeld:
             statusLabel.stringValue = "Držíš \(HotkeyPreference.current.hintLabel)"
+            escHintLabel.isHidden = true
+            levelMeter.isHidden = true
             dotView.layer?.backgroundColor = AppTheme.Color.recording.cgColor
         case .recording:
             statusLabel.stringValue = "Nahrávám — mluv"
             previewLabel.isHidden = true
+            escHintLabel.isHidden = false
+            levelMeter.isHidden = false
             dotView.layer?.backgroundColor = AppTheme.Color.recording.cgColor
         case .streamingPreview(let confirmed, let draft):
             statusLabel.stringValue = "Nahrávám — mluv"
+            escHintLabel.isHidden = false
+            levelMeter.isHidden = false
             dotView.layer?.backgroundColor = AppTheme.Color.recording.cgColor
             let draftTrimmed = draft.trimmingCharacters(in: .whitespaces)
             let confirmedTrimmed = confirmed.trimmingCharacters(in: .whitespaces)
@@ -284,6 +313,8 @@ final class RecordingOverlayController {
         case .transcribing:
             statusLabel.stringValue = "Přepisuji…"
             previewLabel.isHidden = true
+            escHintLabel.isHidden = true
+            levelMeter.isHidden = true
             dotView.layer?.backgroundColor = AppTheme.Color.accent.cgColor
         case .injecting:
             statusLabel.stringValue = "Vkládám text…"
@@ -321,7 +352,18 @@ final class RecordingOverlayController {
     private func startPulseIfNeeded(for mode: RecordingOverlayMode) {
         pulseTimer?.invalidate()
         pulseTimer = nil
+        stopLevelMeter()
+
+        let showsMeter = mode == .recording || isStreamingPreviewMode(mode)
+        if showsMeter {
+            startLevelMeter()
+        }
+
         guard mode == .keyHeld || mode == .recording || isStreamingPreviewMode(mode) else { return }
+        if AccessibilitySupport.shouldReduceMotion {
+            dotView.layer?.backgroundColor = AppTheme.Color.recording.cgColor
+            return
+        }
 
         let recording = AppTheme.Color.recording
         var bright = true
@@ -333,5 +375,21 @@ final class RecordingOverlayController {
                 ).cgColor
             }
         }
+    }
+
+    private func startLevelMeter() {
+        levelTimer?.invalidate()
+        levelTimer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, let provider = self.audioLevelProvider else { return }
+                let level = await provider()
+                self.levelMeter.pushLevel(level)
+            }
+        }
+    }
+
+    private func stopLevelMeter() {
+        levelTimer?.invalidate()
+        levelTimer = nil
     }
 }

@@ -51,7 +51,8 @@ Bootstrap lokální složky (volitelné, obnoví `.impeccable`):
 | Surface | Soubor(y) | Příkaz |
 |---------|-----------|--------|
 | Menu bar | `Dictator/UI/StatusBarController.swift` | `/impeccable critique Dictator/UI/StatusBarController.swift` |
-| Onboarding / oprávnění | `Dictator/UI/PermissionsWindowController.swift` | `/impeccable onboard Dictator/UI/PermissionsWindowController.swift` |
+| Onboarding / oprávnění | `Dictator/UI/SetupWindowController.swift` | `/impeccable onboard Dictator/UI/SetupWindowController.swift` |
+| Nastavení (prefs) | `Dictator/UI/PreferencesWindowController.swift` | `/impeccable clarify Dictator/UI/PreferencesWindowController.swift` |
 | Recording HUD | `Dictator/UI/RecordingOverlayController.swift` | `/impeccable polish Dictator/UI/RecordingOverlayController.swift` |
 | Design tokens | `Dictator/UI/AppTheme.swift` | `/impeccable document` (refresh DESIGN.md) |
 | Celé UI | `Dictator/UI/` | `/impeccable critique Dictator/UI` |
@@ -67,7 +68,7 @@ Detektor antipatternů (`detect.mjs`) je určen pro HTML/CSS — u Swift UI spol
 /impeccable critique <soubor>        → UX review + uložení do .impeccable/critique/
 /impeccable polish <soubor>          → opravy podle poslední critique
 /impeccable distill StatusBarController   → zjednodušit menu
-/impeccable onboard PermissionsWindowController
+/impeccable onboard SetupWindowController
 /impeccable clarify Dictator/UI
 /impeccable audit Dictator/UI        → a11y (VoiceOver copy v AccessibilitySupport)
 /impeccable document                → aktualizovat DESIGN.md z kódu

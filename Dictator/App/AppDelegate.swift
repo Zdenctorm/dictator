@@ -13,7 +13,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var transcriptionEngine: TranscriptionEngine!
     private var postProcessingEngine: PostProcessingEngine!
     private var recordingOverlay: RecordingOverlayController!
-    private var permissionsWindowController: PermissionsWindowController?
+    private var setupWindowController: SetupWindowController?
+    private var preferencesWindowController: PreferencesWindowController?
     private var launchWindowController: LaunchWindowController?
     private var learnedTermsWindowController: LearnedTermsWindowController?
     private var updaterController: SPUStandardUpdaterController!
@@ -96,6 +97,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             userDriverDelegate: nil
         )
         recordingOverlay = RecordingOverlayController()
+        recordingOverlay.audioLevelProvider = { [weak self] in
+            await self?.audioRecorder.currentAudioLevel() ?? 0
+        }
+        recordingOverlay.onCancelRecording = { [weak self] in
+            self?.cancelActiveDictation()
+        }
         statusBarController = StatusBarController(
             stateMachine: stateMachine,
             updaterController: updaterController,
@@ -124,7 +131,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         observeAppState()
         dictationTargetTracker.startObserving()
 
-        if PermissionsWindowController.currentSnapshot.allGranted {
+        if PermissionsSnapshotProvider.current.allGranted {
             if !installHotkeyIfPossible() {
                 let message: String
                 if !InputMonitoringSettings.isGranted() {
@@ -133,7 +140,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     message = "Chybí Zpřístupnění — diktovací klávesa nebude fungovat v jiných aplikacích."
                 }
                 statusBarController.showTransientStatus(message, duration: 10)
-                showPermissionsWindow()
+                showSetupWindow()
             } else {
                 maybeShowCzechHotkeyTip()
             }
@@ -143,7 +150,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusBarController.onMenuWillOpen = { [weak self] in
             self?.dictationTargetTracker.snapshotForMenuAction()
         }
-        statusBarController.onOpenSetup = { [weak self] in self?.showCurrentSetupWindow() }
+        statusBarController.onOpenPreferences = { [weak self] in self?.showPreferencesWindow() }
+        statusBarController.onOpenSetupGuide = { [weak self] in self?.showSetupWindow() }
         statusBarController.onOpenDiagnostics = { DiagnosticsLogger.openLogDirectory() }
         statusBarController.onRunAccessibilityAudit = { [weak self] in self?.runAccessibilityAudit() }
         statusBarController.onToggleDictation = { [weak self] in self?.toggleMenuDictation() }
@@ -263,7 +271,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func handleModifierEvent(key: HotkeyKey, down: Bool) {
-        permissionsWindowController?.reportKeyEvent(key: key, isDown: down)
+        setupWindowController?.reportKeyEvent(key: key, isDown: down)
 
         switch key {
         case .option, .leftOption:
@@ -338,7 +346,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         stateMachine.transition(to: .launching)
         DiagnosticsLogger.log("Startup started")
 
-        let permissions = PermissionsWindowController.currentSnapshot
+        let permissions = PermissionsSnapshotProvider.current
         DiagnosticsLogger.log(
             "Permissions snapshot. microphone=\(permissions.microphone.label), accessibility=\(permissions.accessibility.label), inputMonitoring=\(permissions.inputMonitoring.label)"
         )
@@ -346,17 +354,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             stateMachine.transition(to: .permissionsNeeded)
             DiagnosticsLogger.log("Startup paused: permissions needed")
             installHotkeyIfPossible()
-            showPermissionsWindow()
+            showSetupWindow()
             return
         }
 
-        permissionsWindowController?.close()
-        permissionsWindowController = nil
+        setupWindowController?.close()
+        setupWindowController = nil
         showLaunchWindow()
 
         guard installHotkeyIfPossible() else {
             stateMachine.transition(to: .permissionsNeeded)
-            showPermissionsWindow()
+            showSetupWindow()
             return
         }
 
@@ -784,6 +792,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onInsert: { [weak self] in
                 guard let text = entry?.text else { return }
                 self?.startBackgroundInject(text: text, trigger: "menu-popover")
+            },
+            onOpenFullHistory: { [weak self] in
+                self?.showLastTranscription()
             }
         )
     }
@@ -913,23 +924,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func showCurrentSetupWindow() {
-        showPermissionsWindow()
-    }
-
-    private func showPermissionsWindow() {
-        permissionsWindowController?.close()
-        let controller = PermissionsWindowController()
-        controller.hotkeyHealthProvider = { [weak self] in
-            self?.hotkeyManager.currentHealth() ?? .tapMissing
-        }
+    private func showSetupWindow() {
+        setupWindowController?.close()
+        let controller = SetupWindowController()
         controller.onPermissionsGranted = { [weak self] in
-            self?.permissionsWindowController = nil
+            self?.setupWindowController = nil
             self?.hotkeyManager.reinstallAfterAccessibilityGrant()
             self?.startStartupTask()
         }
-        permissionsWindowController = controller
+        setupWindowController = controller
         AppWindowPresenter.present(controller.window)
+    }
+
+    private func showPreferencesWindow() {
+        if preferencesWindowController == nil {
+            let controller = PreferencesWindowController()
+            controller.hotkeyHealthProvider = { [weak self] in
+                self?.hotkeyManager.currentHealth() ?? .tapMissing
+            }
+            preferencesWindowController = controller
+        } else {
+            preferencesWindowController?.hotkeyHealthProvider = { [weak self] in
+                self?.hotkeyManager.currentHealth() ?? .tapMissing
+            }
+        }
+        AppWindowPresenter.present(preferencesWindowController?.window)
     }
 
     private func startPostProcessingLoad() async {
@@ -966,7 +985,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         Task {
             await transcriptionEngine.unload()
-            if PermissionsWindowController.currentSnapshot.allGranted {
+            if PermissionsSnapshotProvider.current.allGranted {
                 startStartupTask()
             }
         }

@@ -4,6 +4,11 @@ enum AccessibilitySupport {
     private static var lastAnnouncement = ""
     private static var lastAnnouncementTime: Date = .distantPast
 
+    /// Systémové „Snížit pohyb“ — vypne pulzující animace v HUD a menu baru.
+    static var shouldReduceMotion: Bool {
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
+
     static func configure(
         _ view: NSView,
         label: String,
