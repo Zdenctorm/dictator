@@ -21,8 +21,8 @@ enum PostProcessingModelSize: String, CaseIterable, Sendable {
 
     var label: String {
         switch self {
-        case .standard: return "Standardní (Qwen2.5 1.5B)"
-        case .compact:  return "Kompaktní (Llama 1B)"
+        case .standard: return "Přesnější (~950 MB)"
+        case .compact:  return "Rychlejší (~620 MB)"
         }
     }
 

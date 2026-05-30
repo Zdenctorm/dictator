@@ -155,6 +155,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusBarController.onShowTranscriptionPopover = { [weak self] button in
             self?.showTranscriptionPopover(from: button)
         }
+        statusBarController.lastTranscriptProvider = { [weak self] in
+            self?.transcriptionHistory.first
+        }
+        statusBarController.onPasteAgain = { [weak self] in
+            guard let text = self?.transcriptionHistory.first?.text, !text.isEmpty else { return }
+            self?.startBackgroundInject(text: text, trigger: "menu-paste-again")
+        }
+        statusBarController.onCopyLastTranscript = { [weak self] in
+            guard let text = self?.transcriptionHistory.first?.text, !text.isEmpty else { return }
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+            self?.statusBarController.showTransientStatus("Zkopírováno", duration: 2)
+        }
         statusBarController.onOpenLearnedTerms = { [weak self] in self?.showLearnedTermsWindow() }
         launchWindowController?.onRetry = { [weak self] in self?.startStartupTask() }
         launchWindowController?.onRetryInsert = { [weak self] text in

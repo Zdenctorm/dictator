@@ -37,10 +37,14 @@ final class PreferencesPanelBuilder: NSObject {
             buildHotkeyCard(),
             buildActivationCard(),
             buildModelCard(),
-            buildPostProcessingCard(),
             buildMicrophoneCard(),
             buildBehaviorCard()
         ]
+    }
+
+    /// Pokročilé nastavení (mimo hlavní scroll) — oprava textu na Macu.
+    func buildAdvancedCards() -> [NSView] {
+        [buildPostProcessingCard()]
     }
 
     func refreshMicrophonePicker() {
@@ -63,7 +67,7 @@ final class PreferencesPanelBuilder: NSObject {
     func refreshHotkeyTapHealthLabel() {
         if !InputMonitoringSettings.isGranted() {
             hotkeyTapHealthLabel.stringValue =
-                "Bez Monitorování vstupu klávesa funguje jen když je \(AppBrand.displayName) v popředí — povol v Průvodci nastavením."
+                "Varování: bez Monitorování vstupu klávesa funguje jen když je \(AppBrand.displayName) v popředí — povol v Průvodci nastavením."
             hotkeyTapHealthLabel.textColor = AppTheme.Color.danger
             return
         }
@@ -74,19 +78,19 @@ final class PreferencesPanelBuilder: NSObject {
         switch health {
         case .notTrusted:
             hotkeyTapHealthLabel.stringValue =
-                "Klávesu nelze sledovat — nejdřív povol Zpřístupnění pro tuto kopii aplikace."
+                "Problém: klávesu nelze sledovat — nejdřív povol Zpřístupnění pro tuto kopii aplikace."
             hotkeyTapHealthLabel.textColor = AppTheme.Color.danger
         case .tapMissing:
             hotkeyTapHealthLabel.stringValue =
-                "Sledování klávesy není aktivní — restartuj \(AppBrand.displayName) po povolení Zpřístupnění."
+                "Pozor: sledování klávesy není aktivní — restartuj \(AppBrand.displayName) po povolení Zpřístupnění."
             hotkeyTapHealthLabel.textColor = AppTheme.Color.warning
         case .receivingEvents:
             hotkeyTapHealthLabel.stringValue =
-                "Sledování klávesy je aktivní. Otestuj stiskem diktovací klávesy (funguje i v jiné aplikaci)."
+                "V pořádku: sledování klávesy je aktivní. Otestuj stiskem diktovací klávesy (funguje i v jiné aplikaci)."
             hotkeyTapHealthLabel.textColor = AppTheme.Color.success
         case .stale(let seconds):
             hotkeyTapHealthLabel.stringValue =
-                "Klávesu dlouho nevidím (\(Int(seconds)) s) — stiskni diktovací klávesu jednou pro probuzení."
+                "Pozor: klávesu dlouho nevidím (\(Int(seconds)) s) — stiskni diktovací klávesu jednou pro probuzení."
             hotkeyTapHealthLabel.textColor = AppTheme.Color.warning
         }
     }
@@ -177,9 +181,9 @@ final class PreferencesPanelBuilder: NSObject {
         postProcessingSizePicker.target = self
         postProcessingSizePicker.action = #selector(postProcessingSizeChanged(_:))
         postProcessingSizeDetailLabel.stringValue = PostProcessingPreference.modelSize.detail
-        let title = AppTheme.label("Oprava přepisu na Macu (lokální LLM)", font: AppTheme.Font.headline, color: AppTheme.Color.title)
+        let title = AppTheme.label("Oprava textu na Macu", font: AppTheme.Font.headline, color: AppTheme.Color.title)
         let detail = AppTheme.label(
-            "Zapni/vypni v menu baru. Velikost modelu ovlivní kvalitu a rychlost offline úprav textu.",
+            "Zapni nebo vypni v menu → Pokročilé. Velikost ovlivní kvalitu a rychlost offline úprav textu.",
             font: AppTheme.Font.body,
             color: AppTheme.Color.body,
             lines: 0

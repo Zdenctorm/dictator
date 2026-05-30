@@ -23,8 +23,8 @@ enum TranscriptionModelPreference: String, CaseIterable, Sendable {
 
     var label: String {
         switch self {
-        case .speed: return "Rychlost (turbo)"
-        case .accuracy: return "Přesnost (large-v3)"
+        case .speed: return "Rychlost (doporučeno)"
+        case .accuracy: return "Přesnost (pomalejší)"
         }
     }
 

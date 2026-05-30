@@ -100,7 +100,7 @@ Hlavní loop: **klávesa → mikrofon → přepis → vložení**. Vedlejší: h
 
 - Cíl: **WCAG 2.1 AA** tam, kde AppKit a VoiceOver umožňují měřitelné chování (labely, oznámení stavů, kontrast textu na `AppTheme` površích).
 - **VoiceOver:** dynamické labely menu baru a HUD (`AccessibilitySupport`); audit z menu „Analýza zpřístupnění“.
-- **Reduced motion:** respektovat systémové nastavení macOS u pulzujícího HUD (roadmap).
+- **Reduced motion:** respektovat systémové nastavení macOS u pulzujícího HUD a ikony menu baru (implementováno přes `AccessibilitySupport.shouldReduceMotion`).
 - **Barvoslepost:** stavy nesmí spoléhat jen na červenou/zelenou — ikona + text stavu.
 
 ---
