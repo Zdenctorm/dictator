@@ -211,7 +211,7 @@ final class RecordingOverlayController {
         AccessibilitySupport.configure(
             statusRow,
             label: "Stav diktování",
-            help: "Ukazuje, jestli Dictator nahrává, přepisuje nebo vkládá text.",
+            help: "Ukazuje, jestli \(AppBrand.displayName) nahrává, přepisuje nebo vkládá text.",
             role: .group
         )
 
@@ -292,7 +292,7 @@ final class RecordingOverlayController {
             statusLabel.stringValue = "Vloženo"
             dotView.layer?.backgroundColor = AppTheme.Color.success.cgColor
         case .injectionFailed:
-            statusLabel.stringValue = "Text se nevložil — otevři Dictator"
+            statusLabel.stringValue = "Text se nevložil — otevři \(AppBrand.displayName)"
             dotView.layer?.backgroundColor = NSColor.systemRed.cgColor
         case .busy(let message):
             statusLabel.stringValue = message

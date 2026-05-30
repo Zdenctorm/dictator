@@ -64,7 +64,7 @@ final class PermissionsWindowController: NSWindowController {
     private let revealAppButton = AppTheme.secondaryButton("Ukázat ve Finderu", target: nil, action: nil)
     private let copyLogButton = AppTheme.secondaryButton("Zkopírovat log", target: nil, action: nil)
     private let keyTestStatusLabel = AppTheme.label(
-        "Stiskni svou diktovací klávesu — Dictator ukáže, jestli ji vidí.",
+        "Stiskni svou diktovací klávesu — \(AppBrand.displayName) ukáže, jestli ji vidí.",
         font: AppTheme.Font.body,
         color: AppTheme.Color.body,
         lines: 0
@@ -159,7 +159,7 @@ final class PermissionsWindowController: NSWindowController {
     }
 
     private func resetKeyTestHintIfStale() {
-        keyTestStatusLabel.stringValue = "Stiskni svou diktovací klávesu — Dictator ukáže, jestli ji vidí."
+        keyTestStatusLabel.stringValue = "Stiskni svou diktovací klávesu — \(AppBrand.displayName) ukáže, jestli ji vidí."
         keyTestStatusLabel.textColor = AppTheme.Color.body
     }
 
@@ -363,7 +363,7 @@ final class PermissionsWindowController: NSWindowController {
             color: AppTheme.Color.title
         )
         let subtitle = AppTheme.label(
-            "Povolte tři oprávnění. Bez „Monitorování vstupu“ diktovací klávesa funguje jen s otevřeným oknem Dictatoru.",
+            "Povolte tři oprávnění. Bez „Monitorování vstupu“ diktovací klávesa funguje jen s otevřeným oknem \(AppBrand.displayName).",
             font: AppTheme.Font.body,
             color: AppTheme.Color.body,
             lines: 0
@@ -396,7 +396,7 @@ final class PermissionsWindowController: NSWindowController {
             title: "Monitorování vstupu",
             detail: """
             Nutné pro globální diktovací klávesu v Linearu, Cursoru a dalších appkách. Klepni na tlačítko, \
-            povol Dictator v seznamu Monitorování vstupu (stejná .app jako u Zpřístupnění).
+            povol \(AppBrand.displayName) v seznamu Monitorování vstupu (stejná .app jako u Zpřístupnění).
             """,
             badge: inputMonitoringBadge,
             button: inputMonitoringButton
@@ -407,8 +407,8 @@ final class PermissionsWindowController: NSWindowController {
             title: "Zpřístupnění",
             detail: """
             macOS aplikaci do seznamu nepřidá sama — ani po výzvě. Klepni na tlačítko níže: otevře se Nastavení \
-            a ve Finderu uvidíš přesně tuto kopii Dictator.app. V Soukromí a zabezpečení → Zpřístupnění klepni na + \
-            a vyber tuto aplikaci (nebo ji přetáhni). Starý záznam „Dictator" z jiné složky smaž.
+            a ve Finderu uvidíš přesně tuto kopii \(AppBrand.bundleFileName). V Soukromí a zabezpečení → Zpřístupnění klepni na + \
+            a vyber tuto aplikaci (nebo ji přetáhni). Starý záznam „\(AppBrand.displayName)“ z jiné složky smaž.
             """,
             badge: accessibilityBadge,
             button: accessibilityButton,
@@ -429,7 +429,7 @@ final class PermissionsWindowController: NSWindowController {
         ])
 
         let helper = AppTheme.label(
-            "Pokud klávesa funguje jen s otevřeným Dictatorem, chybí Monitorování vstupu. Odeber staré záznamy Dictatoru a přidej /Applications/Dictator.app do obou seznamů.",
+            "Pokud klávesa funguje jen s otevřeným \(AppBrand.displayName), chybí Monitorování vstupu. Odeber staré záznamy \(AppBrand.displayName) a přidej /Applications/\(AppBrand.bundleFileName) do obou seznamů.",
             font: AppTheme.Font.footnote,
             color: AppTheme.Color.body,
             lines: 0
@@ -591,7 +591,7 @@ final class PermissionsWindowController: NSWindowController {
             label: "Zpřístupnění: \(snapshot.accessibility.label)",
             help: snapshot.accessibility == .allowed
                 ? "Zpřístupnění je povolené."
-                : "Přidej tuto kopii Dictator.app do Soukromí a zabezpečení → Zpřístupnění."
+                : "Přidej tuto kopii \(AppBrand.bundleFileName) do Soukromí a zabezpečení → Zpřístupnění."
         )
         accessibilityButton.isHidden = snapshot.accessibility == .allowed
 
@@ -604,7 +604,7 @@ final class PermissionsWindowController: NSWindowController {
     private func refreshHotkeyTapHealthLabel() {
         if !InputMonitoringSettings.isGranted() {
             hotkeyTapHealthLabel.stringValue =
-                "Bez Monitorování vstupu klávesa funguje jen když je Dictator v popředí — povol v kroku 3 výše."
+                "Bez Monitorování vstupu klávesa funguje jen když je \(AppBrand.displayName) v popředí — povol v kroku 3 výše."
             hotkeyTapHealthLabel.textColor = AppTheme.Color.danger
             return
         }
@@ -617,7 +617,7 @@ final class PermissionsWindowController: NSWindowController {
             hotkeyTapHealthLabel.stringValue = "Klávesu nelze sledovat — nejdřív povol Zpřístupnění pro tuto kopii aplikace."
             hotkeyTapHealthLabel.textColor = AppTheme.Color.danger
         case .tapMissing:
-            hotkeyTapHealthLabel.stringValue = "Sledování klávesy není aktivní — restartuj Dictator po povolení Zpřístupnění."
+            hotkeyTapHealthLabel.stringValue = "Sledování klávesy není aktivní — restartuj \(AppBrand.displayName) po povolení Zpřístupnění."
             hotkeyTapHealthLabel.textColor = AppTheme.Color.warning
         case .receivingEvents:
             hotkeyTapHealthLabel.stringValue = "Sledování klávesy je aktivní. Otestuj stiskem níže (funguje i v jiné aplikaci)."

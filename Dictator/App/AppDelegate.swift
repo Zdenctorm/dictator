@@ -47,7 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         keepAliveActivity = ProcessInfo.processInfo.beginActivity(
             options: [.userInitiated, .idleSystemSleepDisabled],
-            reason: "Dictator global hotkey monitoring"
+            reason: "\(AppBrand.displayName) global hotkey monitoring"
         )
         DiagnosticsLogger.log("App launched. Bundle path: \(Bundle.main.bundleURL.path)")
         DiagnosticsLogger.logStartupContext()
@@ -128,7 +128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if !installHotkeyIfPossible() {
                 let message: String
                 if !InputMonitoringSettings.isGranted() {
-                    message = "Chybí Monitorování vstupu — klávesa funguje jen s oknem Dictatoru. Otevři Nastavení."
+                    message = "Chybí Monitorování vstupu — klávesa funguje jen s oknem \(AppBrand.displayName). Otevři Nastavení."
                 } else {
                     message = "Chybí Zpřístupnění — diktovací klávesa nebude fungovat v jiných aplikacích."
                 }
@@ -291,7 +291,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .permissionsNeeded:
             return .busy("Nejdřív dokončete nastavení oprávnění")
         case .error:
-            return .busy("Dictator vyžaduje pozornost")
+            return .busy("\(AppBrand.displayName) vyžaduje pozornost")
         default:
             return .busy("Počkejte — ještě nejsem připravený")
         }
@@ -716,7 +716,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .audioTooQuiet:
             return "Mikrofon skoro nic nezachytil. V Nastavení → Zvuk zkontroluj vstupní zařízení a mluv blíž."
         case .hallucinatedTranscript:
-            return "Whisper slyšel jen šum (falešné „titulky“). Mluv hlasitěji — Dictator to záměrně nevloží."
+            return "Whisper slyšel jen šum (falešné „titulky“). Mluv hlasitěji — \(AppBrand.displayName) to záměrně nevloží."
         case .modelNotLoaded:
             return "Model ještě není načtený — počkejte na dokončení stahování."
         }
@@ -796,11 +796,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self else { return }
                 SoundFeedbackService.playError()
                 self.recordingOverlay.showTransientFeedback(
-                    "Vložení trvá dlouho — text je v okně Dictatoru",
+                    "Vložení trvá dlouho — text je v okně \(AppBrand.displayName)",
                     duration: 5
                 )
                 self.statusBarController.showTransientStatus(
-                    "Vložení trvá dlouho — text je v okně Dictatoru",
+                    "Vložení trvá dlouho — text je v okně \(AppBrand.displayName)",
                     duration: 4
                 )
             }
@@ -831,7 +831,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             recordingOverlay.scheduleAutoHide(after: 5)
             showLastTranscription()
             statusBarController.showTransientStatus(
-                "Text je v okně Dictatoru — zkopíruj nebo zkus „Vložit“",
+                "Text je v okně \(AppBrand.displayName) — zkopíruj nebo zkus „Vložit“",
                 duration: 5
             )
         }
@@ -884,7 +884,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .modelDownloading, .modelLoading:
             return "Počkejte — připravuji model"
         default:
-            return "Počkejte — Dictator není připravený"
+            return "Počkejte — \(AppBrand.displayName) není připravený"
         }
     }
 

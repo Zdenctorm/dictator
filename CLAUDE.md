@@ -2,7 +2,7 @@
 
 ## Co je tento projekt
 
-Nativní macOS appka pro hlasové diktování.
+Nativní macOS appka pro hlasové diktování. **Veřejný brand: Locute** (viz `BRAND.md`). Repo / Xcode target: `Dictator`.
 
 Uživatel přidrží klávesu, mluví, pustí → text se objeví tam, kde má kurzor.
 

@@ -67,7 +67,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         menu.delegate = self
 
         statusMenuItem.isEnabled = false
-        AccessibilitySupport.configure(statusMenuItem, help: "Aktuální stav Dictatoru")
+        AccessibilitySupport.configure(statusMenuItem, help: "Aktuální stav \(AppBrand.displayName)")
         menu.addItem(statusMenuItem)
 
         hintMenuItem.isEnabled = false
@@ -97,7 +97,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         postProcessingItem.target = self
         menu.addItem(postProcessingItem)
 
-        let learnedItem = NSMenuItem(title: "Co se Dictator naučil…", action: #selector(openLearnedTerms), keyEquivalent: "")
+        let learnedItem = NSMenuItem(title: "Co \(AppBrand.displayName) už umí…", action: #selector(openLearnedTerms), keyEquivalent: "")
         learnedItem.target = self
         menu.addItem(learnedItem)
 
@@ -117,11 +117,11 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         auditItem.target = self
         AccessibilitySupport.configure(
             auditItem,
-            help: "Projde UI Dictatoru a stručně porovná referenční aplikace. Uloží podrobnou zprávu do složky logů."
+            help: "Projde UI \(AppBrand.displayName) a stručně porovná referenční aplikace. Uloží podrobnou zprávu do složky logů."
         )
         menu.addItem(auditItem)
 
-        let aboutItem = NSMenuItem(title: "O Dictatoru", action: #selector(showAbout), keyEquivalent: "")
+        let aboutItem = NSMenuItem(title: "O \(AppBrand.displayName)", action: #selector(showAbout), keyEquivalent: "")
         aboutItem.target = self
         menu.addItem(aboutItem)
 
@@ -149,7 +149,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
         menu.addItem(.separator())
 
-        let quitItem = NSMenuItem(title: "Ukončit Dictator", action: #selector(quit), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: "Ukončit \(AppBrand.displayName)", action: #selector(quit), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
 
@@ -158,7 +158,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         if let button = statusItem.button {
             applyIconOnlyPresentation(to: button)
             button.setAccessibilityRole(.button)
-            button.setAccessibilityTitle("Dictator")
+            button.setAccessibilityTitle(AppBrand.displayName)
         }
     }
 
@@ -227,7 +227,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         switch state {
         case .idle:
             setImage("mic", template: true, decorativeDescription: "Mikrofon, připraveno")
-            button.toolTip = "Dictator je připravený. Podrž \(HotkeyPreference.current.hintLabel) nebo diktuj z menu."
+            button.toolTip = "\(AppBrand.displayName) je připravený. Podrž \(HotkeyPreference.current.hintLabel) nebo diktuj z menu."
         case .recording:
             button.toolTip = "Nahrávám. Pusť klávesu nebo ukonči z menu."
             startRecordingPulse()
@@ -245,13 +245,13 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             button.toolTip = "Načítám model Whisper."
         case .permissionsNeeded:
             setImage("mic.slash", template: true, decorativeDescription: "Mikrofon vypnutý")
-            button.toolTip = "Dictator potřebuje mikrofon a Zpřístupnění."
+            button.toolTip = "\(AppBrand.displayName) potřebuje mikrofon a Zpřístupnění."
         case .error(let message):
             setImage("exclamationmark.triangle", template: true, decorativeDescription: "Varování")
             button.toolTip = message
         case .launching:
             setImage("mic", template: true, decorativeDescription: "Spouštění")
-            button.toolTip = "Spouštím Dictator."
+            button.toolTip = "Spouštím \(AppBrand.displayName)."
         }
 
         applyStatusBarAccessibility(for: state, button: button)
@@ -303,7 +303,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         case .injecting:
             return "Vkládám text — pokud to trvá dlouho, zkontroluj Zpřístupnění a log."
         case .permissionsNeeded:
-            return "Doplň mikrofon, Zpřístupnění a Monitorování vstupu (jinak klávesa jen s oknem Dictatoru)."
+            return "Doplň mikrofon, Zpřístupnění a Monitorování vstupu (jinak klávesa jen s oknem \(AppBrand.displayName))."
         case .error:
             return "Je potřeba zásah — nápověda výše v menu."
         }
@@ -315,13 +315,13 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         switch health {
         case .notTrusted:
             if !InputMonitoringSettings.isGranted() {
-                return "Zapni Monitorování vstupu pro Dictator.app — bez toho klávesa nefunguje v jiných appkách."
+                return "Zapni Monitorování vstupu pro \(AppBrand.bundleFileName) — bez toho klávesa nefunguje v jiných appkách."
             }
-            return "Zapni Zpřístupnění pro tuto kopii Dictator.app (Nastavení → Soukromí)."
+            return "Zapni Zpřístupnění pro tuto kopii \(AppBrand.bundleFileName) (Nastavení → Soukromí)."
         case .tapMissing:
-            return "Diktovací klávesa není aktivní — otevři Nastavení Dictatoru."
+            return "Diktovací klávesa není aktivní — otevři Nastavení \(AppBrand.displayName)."
         case .stale:
-            return "Dictator neviděl klávesu — stiskni \(HotkeyPreference.current.hintLabel) jednou."
+            return "\(AppBrand.displayName) neviděl klávesu — stiskni \(HotkeyPreference.current.hintLabel) jednou."
         case .receivingEvents:
             return nil
         }
@@ -426,9 +426,9 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     @objc private func showAbout() {
         NSApp.orderFrontStandardAboutPanel(options: [
-            .applicationName: "Dictator",
+            .applicationName: AppBrand.displayName,
             .applicationVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0",
-            .credits: NSAttributedString(string: "Soukromé české diktování. Bez telemetrie, analytiky a backendu. Historie přepisů se ukládá lokálně v ~/Library/Application Support/Dictator/ a přežije restart aplikace.")
+            .credits: NSAttributedString(string: "Soukromé české diktování. Bez telemetrie, analytiky a backendu. Historie přepisů se ukládá lokálně v ~/Library/Application Support/\(AppBrand.storageDirectoryName)/ a přežije restart aplikace.")
         ])
         NSApp.activate(ignoringOtherApps: true)
     }

@@ -72,6 +72,7 @@
 		01000000000000000000004E /* InputMonitoringSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000004E /* InputMonitoringSettings.swift */; };
 		01000000000000000000004F /* AccessibilityAuditEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000004F /* AccessibilityAuditEngine.swift */; };
 		010000000000000000000050 /* AccessibilityAuditReportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000050 /* AccessibilityAuditReportTests.swift */; };
+		010000000000000000000051 /* AppBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000051 /* AppBrand.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -139,6 +140,7 @@
 		02000000000000000000004E /* InputMonitoringSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputMonitoringSettings.swift; sourceTree = "<group>"; };
 		02000000000000000000004F /* AccessibilityAuditEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityAuditEngine.swift; sourceTree = "<group>"; };
 		020000000000000000000050 /* AccessibilityAuditReportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityAuditReportTests.swift; sourceTree = "<group>"; };
+		020000000000000000000051 /* AppBrand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBrand.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -198,6 +200,7 @@
 		040000000000000000000004 /* Core */ = {
 			isa = PBXGroup;
 			children = (
+				020000000000000000000051 /* AppBrand.swift */,
 				020000000000000000000002 /* AppState.swift */,
 				020000000000000000000003 /* HotkeyManager.swift */,
 				020000000000000000000049 /* HotkeyTriggerLogic.swift */,
@@ -416,6 +419,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				01000000000000000000000C /* DictatorMain.swift in Sources */,
+				010000000000000000000051 /* AppBrand.swift in Sources */,
 				010000000000000000000001 /* AppDelegate.swift in Sources */,
 				010000000000000000000002 /* AppState.swift in Sources */,
 				010000000000000000000003 /* HotkeyManager.swift in Sources */,
