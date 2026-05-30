@@ -8,6 +8,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     var onQuit: (() -> Void)?
     var onOpenSetup: (() -> Void)?
     var onOpenDiagnostics: (() -> Void)?
+    var onRunAccessibilityAudit: (() -> Void)?
     var onToggleDictation: (() -> Void)?
     var onTestTranscription: (() -> Void)?
     var onShowLastTranscription: (() -> Void)?
@@ -106,6 +107,18 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         let diagnosticsItem = NSMenuItem(title: "Otevřít diagnostické logy", action: #selector(openDiagnostics), keyEquivalent: "")
         diagnosticsItem.target = self
         menu.addItem(diagnosticsItem)
+
+        let auditItem = NSMenuItem(
+            title: "Analýza zpřístupnění (VoiceOver)…",
+            action: #selector(runAccessibilityAudit),
+            keyEquivalent: ""
+        )
+        auditItem.target = self
+        AccessibilitySupport.configure(
+            auditItem,
+            help: "Projde UI Dictatoru a stručně porovná referenční aplikace. Uloží podrobnou zprávu do složky logů."
+        )
+        menu.addItem(auditItem)
 
         let aboutItem = NSMenuItem(title: "O Dictatoru", action: #selector(showAbout), keyEquivalent: "")
         aboutItem.target = self
@@ -383,6 +396,10 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     @objc private func openDiagnostics() {
         onOpenDiagnostics?()
+    }
+
+    @objc private func runAccessibilityAudit() {
+        onRunAccessibilityAudit?()
     }
 
     @objc private func showAbout() {
