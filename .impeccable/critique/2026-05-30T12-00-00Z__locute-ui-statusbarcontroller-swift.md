@@ -41,7 +41,7 @@ Register: product. North Star largely met; gaps were implementation drift, not A
 
 ## P2 (backlog)
 
-- Menu shortcut „Vložit znovu“ when idle + last transcript exists (Whispur pattern).
+- ~~Menu shortcut „Vložit znovu“~~ — záměrně ne (stačí popover „Poslední přepis…“ → Vložit; rozhodnutí tým 2026-05).
 - Accent-filled primary CTA once per window (DESIGN open question).
 - Learned terms footnote still mentions Whisper (advanced OK, could soften).
 
