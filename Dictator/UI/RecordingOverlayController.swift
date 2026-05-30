@@ -15,18 +15,17 @@ enum RecordingOverlayMode: Equatable {
 
 @MainActor
 final class RecordingOverlayController {
-    var onCancelRecording: (() -> Void)?
-    var audioLevelProvider: (() async -> Float)?
-
     private var panel: NSPanel?
     private let statusLabel = NSTextField(labelWithString: "")
     private let previewLabel = NSTextField(labelWithString: "")
     private let escHintLabel = NSTextField(labelWithString: "")
-    private let levelMeter = RecordingLevelMeterView()
     private let dotView = NSView()
     private let statusRow = NSStackView()
+    private let levelMeterView = AudioLevelMeterView()
+    private var statusRowBottomConstraint: NSLayoutConstraint?
+    private var meterBottomConstraint: NSLayoutConstraint?
+    private var meterVisible = false
     private var pulseTimer: Timer?
-    private var levelTimer: Timer?
     private var currentMode: RecordingOverlayMode = .hidden
     private var lastSyncedState: DictatorState = .idle
     private var hideDelayTimer: Timer?
@@ -48,11 +47,10 @@ final class RecordingOverlayController {
         currentMode = .hidden
         pulseTimer?.invalidate()
         pulseTimer = nil
-        stopLevelMeter()
         previewLabel.stringValue = ""
         previewLabel.isHidden = true
-        levelMeter.isHidden = true
-        levelMeter.reset()
+        escHintLabel.isHidden = true
+        setMeterVisible(false)
         panel?.orderOut(nil)
     }
 
@@ -69,6 +67,11 @@ final class RecordingOverlayController {
         ensurePanel()
         apply(currentMode)
         panel?.orderFrontRegardless()
+    }
+
+    func updateAudioLevel(_ normalized: Float) {
+        guard meterVisible else { return }
+        levelMeterView.setLevel(normalized)
     }
 
     private func isStreamingPreviewMode(_ mode: RecordingOverlayMode) -> Bool {
@@ -161,7 +164,7 @@ final class RecordingOverlayController {
         guard panel == nil else { return }
 
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 440, height: 88),
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 72),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -212,9 +215,7 @@ final class RecordingOverlayController {
         escHintLabel.isHidden = true
         escHintLabel.setAccessibilityElement(false)
 
-        levelMeter.isHidden = true
-
-        let textColumn = NSStackView(views: [statusLabel, previewLabel, levelMeter, escHintLabel])
+        let textColumn = NSStackView(views: [statusLabel, previewLabel, escHintLabel])
         textColumn.orientation = .vertical
         textColumn.alignment = .leading
         textColumn.spacing = 4
@@ -235,7 +236,17 @@ final class RecordingOverlayController {
         let root = NSView()
         root.addSubview(container)
         container.addSubview(statusRow)
+
+        levelMeterView.translatesAutoresizingMaskIntoConstraints = false
+        levelMeterView.isHidden = true
+        container.addSubview(levelMeterView)
+
         panel.contentView = root
+
+        let statusBottom = statusRow.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -12)
+        let meterBottom = levelMeterView.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -12)
+        statusRowBottomConstraint = statusBottom
+        meterBottomConstraint = meterBottom
 
         NSLayoutConstraint.activate([
             container.leadingAnchor.constraint(equalTo: root.leadingAnchor),
@@ -246,7 +257,10 @@ final class RecordingOverlayController {
             statusRow.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16),
             statusRow.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -16),
             statusRow.topAnchor.constraint(equalTo: container.topAnchor, constant: 12),
-            statusRow.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -12)
+
+            levelMeterView.leadingAnchor.constraint(equalTo: statusRow.leadingAnchor),
+            levelMeterView.topAnchor.constraint(equalTo: statusRow.bottomAnchor, constant: 8),
+            statusBottom
         ])
 
         self.panel = panel
@@ -270,28 +284,19 @@ final class RecordingOverlayController {
     }
 
     private func apply(_ mode: RecordingOverlayMode) {
-        let showsRecordingUI = mode == .recording || isStreamingPreviewMode(mode)
-        if !showsRecordingUI {
-            escHintLabel.isHidden = true
-            levelMeter.isHidden = true
-        }
+        let showsRecordingUI = modeShowsMeter(mode)
+        escHintLabel.isHidden = !showsRecordingUI
 
         switch mode {
         case .keyHeld:
             statusLabel.stringValue = "Držíš \(HotkeyPreference.current.hintLabel)"
-            escHintLabel.isHidden = true
-            levelMeter.isHidden = true
             dotView.layer?.backgroundColor = AppTheme.Color.recording.cgColor
         case .recording:
             statusLabel.stringValue = "Nahrávám — mluv"
             previewLabel.isHidden = true
-            escHintLabel.isHidden = false
-            levelMeter.isHidden = false
             dotView.layer?.backgroundColor = AppTheme.Color.recording.cgColor
         case .streamingPreview(let confirmed, let draft):
             statusLabel.stringValue = "Nahrávám — mluv"
-            escHintLabel.isHidden = false
-            levelMeter.isHidden = false
             dotView.layer?.backgroundColor = AppTheme.Color.recording.cgColor
             let draftTrimmed = draft.trimmingCharacters(in: .whitespaces)
             let confirmedTrimmed = confirmed.trimmingCharacters(in: .whitespaces)
@@ -313,8 +318,6 @@ final class RecordingOverlayController {
         case .transcribing:
             statusLabel.stringValue = "Přepisuji…"
             previewLabel.isHidden = true
-            escHintLabel.isHidden = true
-            levelMeter.isHidden = true
             dotView.layer?.backgroundColor = AppTheme.Color.accent.cgColor
         case .injecting:
             statusLabel.stringValue = "Vkládám text…"
@@ -346,20 +349,40 @@ final class RecordingOverlayController {
             AccessibilitySupport.announce(label)
         }
 
+        setMeterVisible(showsRecordingUI)
         positionPanel()
+    }
+
+    private func modeShowsMeter(_ mode: RecordingOverlayMode) -> Bool {
+        switch mode {
+        case .recording, .streamingPreview:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func setMeterVisible(_ visible: Bool) {
+        guard meterVisible != visible else { return }
+        meterVisible = visible
+        levelMeterView.isHidden = !visible
+        statusRowBottomConstraint?.isActive = !visible
+        meterBottomConstraint?.isActive = visible
+        if !visible {
+            levelMeterView.setLevel(0)
+        }
+
+        guard let panel else { return }
+        var frame = panel.frame
+        frame.size.height = visible ? 98 : 72
+        panel.setFrame(frame, display: false)
     }
 
     private func startPulseIfNeeded(for mode: RecordingOverlayMode) {
         pulseTimer?.invalidate()
         pulseTimer = nil
-        stopLevelMeter()
-
-        let showsMeter = mode == .recording || isStreamingPreviewMode(mode)
-        if showsMeter {
-            startLevelMeter()
-        }
-
         guard mode == .keyHeld || mode == .recording || isStreamingPreviewMode(mode) else { return }
+
         if AccessibilitySupport.shouldReduceMotion {
             dotView.layer?.backgroundColor = AppTheme.Color.recording.cgColor
             return
@@ -375,21 +398,5 @@ final class RecordingOverlayController {
                 ).cgColor
             }
         }
-    }
-
-    private func startLevelMeter() {
-        levelTimer?.invalidate()
-        levelTimer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                guard let self, let provider = self.audioLevelProvider else { return }
-                let level = await provider()
-                self.levelMeter.pushLevel(level)
-            }
-        }
-    }
-
-    private func stopLevelMeter() {
-        levelTimer?.invalidate()
-        levelTimer = nil
     }
 }

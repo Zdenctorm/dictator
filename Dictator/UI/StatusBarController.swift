@@ -433,11 +433,6 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         onTestTranscription?()
     }
 
-    @objc private func showTranscriptionPopover() {
-        guard let button = statusItem.button else { return }
-        onShowTranscriptionPopover?(button)
-    }
-
     /// „Poslední přepis…“ — rychlý náhled; celá historie je v popoveru nebo hlavním okně.
     @objc private func showLastTranscriptionFromMenu() {
         if let button = statusItem.button {

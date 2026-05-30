@@ -8,6 +8,7 @@ final class SetupWindowController: NSWindowController {
 
     private var checkTimer: Timer?
     private var lastLoggedSnapshot: PermissionsSnapshot?
+    private var hadAllPermissionsWhenOpened = false
     private var didRequestAccessibilityPromptThisSession = false
     private let bundlePathLabel = AppTheme.label(
         "",
@@ -63,6 +64,7 @@ final class SetupWindowController: NSWindowController {
 
     override func showWindow(_ sender: Any?) {
         super.showWindow(sender)
+        hadAllPermissionsWhenOpened = PermissionsSnapshotProvider.current.allGranted
         AppWindowPresenter.activateApp()
         AppWindowPresenter.present(window)
         bundlePathLabel.stringValue = "Aktuální kopie: \(Bundle.main.bundleURL.path)"
@@ -83,12 +85,9 @@ final class SetupWindowController: NSWindowController {
 
         let formatter = DateFormatter()
         formatter.timeStyle = .medium
-
-        switch key {
-        case .option, .leftOption:
-            keyTestStatusLabel.stringValue = "Zachyceno v \(formatter.string(from: Date()))"
-            keyTestStatusLabel.textColor = AppTheme.Color.success
-        }
+        keyTestStatusLabel.stringValue =
+            "Zachyceno (\(HotkeyPreference.current.hintLabel)) v \(formatter.string(from: Date()))"
+        keyTestStatusLabel.textColor = AppTheme.Color.success
 
         keyTestHintTimer = Timer.scheduledTimer(withTimeInterval: 8, repeats: false) { [weak self] _ in
             Task { @MainActor in
@@ -241,7 +240,8 @@ final class SetupWindowController: NSWindowController {
         checkTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.refreshPermissionState()
-                guard PermissionsSnapshotProvider.current.allGranted else { return }
+                let granted = PermissionsSnapshotProvider.current.allGranted
+                guard granted, self?.hadAllPermissionsWhenOpened == false else { return }
                 self?.close()
                 self?.onPermissionsGranted?()
             }
@@ -326,7 +326,7 @@ final class SetupWindowController: NSWindowController {
     @objc private func checkAgain() {
         DiagnosticsLogger.log("Manual permission recheck requested")
         refreshPermissionState()
-        if PermissionsSnapshotProvider.current.allGranted {
+        if PermissionsSnapshotProvider.current.allGranted, !hadAllPermissionsWhenOpened {
             close()
             onPermissionsGranted?()
         }

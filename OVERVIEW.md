@@ -45,7 +45,7 @@ Celý proces od pauznutí klávesy po zobrazení textu trvá **typicky 1–3 sek
 | WAV soubor nahrávky | `/tmp/` na lokálním Macu, smaže se po přepisu |
 | Přepsaný text | RAM aplikace + cíl (libovolná aplikace), historie v okně Locute |
 | Telemetrie / analytika | **Žádná** — neexistuje |
-| Síťová aktivita | **Jediná**: jednorázové stažení Whisper modelu (~3 GB) z Apple's HuggingFace mirroru při prvním spuštění. Po stažení je Locute plně offline. |
+| Síťová aktivita | **Jediná**: jednorázové stažení Whisper modelu (~630 MB turbo, volitelně ~626 MB přesnost) z Apple's HuggingFace mirroru při prvním spuštění. Po stažení je Locute plně offline. |
 | Cloud / API | Žádné. Locute nevolá žádný server, OpenAI ani jiný backend. |
 
 ### Entitlements (oprávnění aplikace)
@@ -99,7 +99,7 @@ Aplikace má jen dvě:
 - ✅ Lokální Whisper přepis v češtině
 - ✅ Vložení do aktivního okna (Accessibility nebo Cmd+V podle aplikace)
 - ✅ Menu bar ikona se stavovými indikátory (idle / nahrávám / přepisuji / vkládám / chyba)
-- ✅ HUD overlay nahoře obrazovky během nahrávání („Držíš Option", „Nahrávám", „Vloženo")
+- ✅ HUD overlay nahoře obrazovky během nahrávání („Držíš Option", „Nahrávám", „Vloženo") včetně live audio level metru
 - ✅ Historie přepisů (per-řádek, kopírovat / vložit znovu)
 - ✅ Zachytávání cílové aplikace na začátku nahrávání (text vždy jde tam, kde uživatel stiskl klávesu)
 
@@ -124,7 +124,7 @@ Aplikace má jen dvě:
 
 ## Známá omezení
 
-- **První spuštění stáhne ~3 GB modelu** — potřeba internet jednorázově
+- **První spuštění stáhne model (~630 MB turbo, výchozí)** — potřeba internet jednorázově
 - **Pouze Apple Silicon** (M1+). Intel Macy nejsou podporované (WhisperKit large-v3 vyžaduje ANE)
 - **Pouze čeština** — jiné jazyky model umí, ale UI ne (lze přidat)
 - **Whisper sám občas chybuje s velikostí písmen** u krátkých technických slov („echo" → „ECHO"). Plánovaný post-process normalizační krok.
@@ -141,7 +141,7 @@ Aplikace má jen dvě:
    - Macos zařve „Apple cannot check this app" → kliknout pravým → Otevřít → Confirm
    - Povolit **mikrofon** (system dialog)
    - Otevřít **System Settings → Privacy & Security → Accessibility → +** → přidat Locute (v seznamu může být `Dictator.app` do přejmenování balíčku)
-3. Počkat ~5 minut, než se stáhne Whisper model (3 GB)
+3. Počkat několik minut, než se stáhne Whisper model (~630 MB turbo)
 4. Hotovo — drž Option v libovolné aplikaci a diktuj
 
 ### Co kolegové dostanou
