@@ -33,6 +33,14 @@ final class SetupWindowController: NSWindowController {
     private let checkAgainButton = AppTheme.primaryButton("Zkontrolovat znovu", target: nil, action: nil)
     private let revealAppButton = AppTheme.secondaryButton("Ukázat ve Finderu", target: nil, action: nil)
     private let copyLogButton = AppTheme.secondaryButton("Zkopírovat log", target: nil, action: nil)
+    private let progressStepLabel = AppTheme.label(
+        "",
+        font: AppTheme.Font.status,
+        color: AppTheme.Color.accent,
+        lines: 0
+    )
+    private let helpDisclosure = NSButton(title: "Potřebuješ pomoc s oprávněními?", target: nil, action: nil)
+    private let helpPanel = NSView()
     private let keyTestStatusLabel = AppTheme.label(
         "Stiskni svou diktovací klávesu — \(AppBrand.displayName) ukáže, jestli ji vidí.",
         font: AppTheme.Font.body,
@@ -116,13 +124,13 @@ final class SetupWindowController: NSWindowController {
             color: AppTheme.Color.title
         )
         let subtitle = AppTheme.label(
-            "Povolte tři oprávnění. Bez „Monitorování vstupu“ diktovací klávesa funguje jen s otevřeným oknem \(AppBrand.displayName).",
+            "Tři oprávnění, pak krátký test klávesy. Bez „Monitorování vstupu“ diktování funguje jen s otevřeným oknem \(AppBrand.displayName).",
             font: AppTheme.Font.body,
             color: AppTheme.Color.body,
             lines: 0
         )
 
-        let headerText = NSStackView(views: [title, subtitle])
+        let headerText = NSStackView(views: [title, progressStepLabel, subtitle])
         headerText.orientation = .vertical
         headerText.alignment = .leading
         headerText.spacing = AppTheme.Spacing.tight
@@ -153,8 +161,7 @@ final class SetupWindowController: NSWindowController {
             a vyber tuto aplikaci (nebo ji přetáhni). Starý záznam „\(AppBrand.displayName)“ z jiné složky smaž.
             """,
             badge: accessibilityBadge,
-            button: accessibilityButton,
-            extraViews: [bundlePathLabel]
+            button: accessibilityButton
         )
 
         let inputMonitoringRow = PermissionsPanelBuilder.permissionRow(
@@ -174,19 +181,13 @@ final class SetupWindowController: NSWindowController {
             keyTestStatusLabel
         ])
 
-        let helper = AppTheme.label(
-            "Pokud klávesa funguje jen s otevřeným \(AppBrand.displayName), chybí Monitorování vstupu. Odeber staré záznamy \(AppBrand.displayName) a přidej /Applications/\(AppBrand.bundleFileName) do obou seznamů.",
-            font: AppTheme.Font.footnote,
-            color: AppTheme.Color.body,
-            lines: 0
-        )
+        buildHelpPanel()
 
-        let footerSpacer = NSView()
-        footerSpacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        let footerButtons = NSStackView(views: [checkAgainButton, footerSpacer, revealAppButton, copyLogButton])
-        footerButtons.orientation = .horizontal
-        footerButtons.alignment = .centerY
-        footerButtons.spacing = AppTheme.Spacing.row
+        helpDisclosure.setButtonType(.toggle)
+        helpDisclosure.bezelStyle = .inline
+        helpDisclosure.font = AppTheme.Font.footnote
+        helpDisclosure.state = .off
+        helpPanel.isHidden = true
 
         let scrollView = NSScrollView()
         let contentView = NSView()
@@ -201,12 +202,36 @@ final class SetupWindowController: NSWindowController {
                 accessibilityRow,
                 inputMonitoringRow,
                 keyTestCard,
-                footerButtons,
-                helper
+                checkAgainButton,
+                helpDisclosure,
+                helpPanel
             ]
         )
         contentStack.setCustomSpacing(AppTheme.Spacing.hero, after: header)
-        contentStack.setCustomSpacing(AppTheme.Spacing.intimate, after: footerButtons)
+    }
+
+    private func buildHelpPanel() {
+        let helper = AppTheme.label(
+            "Pokud klávesa funguje jen s otevřeným \(AppBrand.displayName), chybí Monitorování vstupu. Odeber staré záznamy \(AppBrand.displayName) a přidej /Applications/\(AppBrand.bundleFileName) do obou seznamů.",
+            font: AppTheme.Font.footnote,
+            color: AppTheme.Color.body,
+            lines: 0
+        )
+
+        let helpStack = NSStackView(views: [helper, bundlePathLabel, revealAppButton, copyLogButton])
+        helpStack.orientation = .vertical
+        helpStack.alignment = .leading
+        helpStack.spacing = AppTheme.Spacing.tight
+        helpStack.translatesAutoresizingMaskIntoConstraints = false
+
+        helpPanel.addSubview(helpStack)
+        NSLayoutConstraint.activate([
+            helpStack.leadingAnchor.constraint(equalTo: helpPanel.leadingAnchor),
+            helpStack.trailingAnchor.constraint(equalTo: helpPanel.trailingAnchor),
+            helpStack.topAnchor.constraint(equalTo: helpPanel.topAnchor),
+            helpStack.bottomAnchor.constraint(equalTo: helpPanel.bottomAnchor),
+            bundlePathLabel.widthAnchor.constraint(equalTo: helpStack.widthAnchor)
+        ])
     }
 
     private func wireActions() {
@@ -222,6 +247,12 @@ final class SetupWindowController: NSWindowController {
         revealAppButton.action = #selector(revealCurrentApp)
         copyLogButton.target = self
         copyLogButton.action = #selector(copyDiagnosticsLog)
+        helpDisclosure.target = self
+        helpDisclosure.action = #selector(toggleHelpPanel)
+    }
+
+    @objc private func toggleHelpPanel(_ sender: NSButton) {
+        helpPanel.isHidden = sender.state != .on
     }
 
     @objc private func copyDiagnosticsLog() {
@@ -281,7 +312,29 @@ final class SetupWindowController: NSWindowController {
 
         inputMonitoringBadge.stringValue = snapshot.inputMonitoring.label
         inputMonitoringBadge.textColor = snapshot.inputMonitoring.color
+        AccessibilitySupport.configure(
+            inputMonitoringBadge,
+            label: "Monitorování vstupu: \(snapshot.inputMonitoring.label)",
+            help: snapshot.inputMonitoring == .allowed
+                ? "Monitorování vstupu je povolené."
+                : "Povol \(AppBrand.displayName) v Soukromí → Monitorování vstupu."
+        )
         inputMonitoringButton.isHidden = snapshot.inputMonitoring == .allowed
+
+        progressStepLabel.stringValue = setupProgressText(for: snapshot)
+    }
+
+    private func setupProgressText(for snapshot: PermissionsSnapshot) -> String {
+        if snapshot.allGranted {
+            return "Všechna oprávnění jsou nastavená — vyzkoušej diktovací klávesu níže."
+        }
+        if snapshot.microphone != .allowed {
+            return "Krok 1 ze 3 — povol mikrofon"
+        }
+        if snapshot.accessibility != .allowed {
+            return "Krok 2 ze 3 — přidej Zpřístupnění"
+        }
+        return "Krok 3 ze 3 — povol monitorování vstupu"
     }
 
     @objc private func requestMicrophone() {
@@ -298,9 +351,9 @@ final class SetupWindowController: NSWindowController {
         AppWindowPresenter.present(window)
         InputMonitoringSettings.revealRunningAppBundle()
         _ = InputMonitoringSettings.requestAccess()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
             InputMonitoringSettings.openPrivacyPane()
-            self.refreshPermissionState()
+            self?.refreshPermissionState()
         }
     }
 
@@ -310,9 +363,9 @@ final class SetupWindowController: NSWindowController {
         AppWindowPresenter.present(window)
         AccessibilitySettings.revealRunningAppBundle()
         _ = AccessibilitySettings.requestTrustPrompt()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
             AccessibilitySettings.openPrivacyPane()
-            self.refreshPermissionState()
+            self?.refreshPermissionState()
         }
     }
 

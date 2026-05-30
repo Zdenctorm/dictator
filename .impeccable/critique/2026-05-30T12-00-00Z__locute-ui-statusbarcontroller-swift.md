@@ -45,6 +45,11 @@ Register: product. North Star largely met; gaps were implementation drift, not A
 - Accent-filled primary CTA once per window (DESIGN open question).
 - Learned terms footnote still mentions Whisper (advanced OK, could soften).
 
+## Follow-up loop (2026-05-30)
+
+- Audit + fixes: `SetupWindowController` — viz `.impeccable/audit/2026-05-30T14-00-00Z__locute-ui-setupwindowcontroller-swift.md`
+- Onboard: `OnboardingPreference` + first-run card v `LaunchWindowController`
+
 ## Polish applied
 
 See branch `cursor/impeccable-loop-b8aa`: AppTheme popover chrome, copy, danger dot, DESIGN sync.

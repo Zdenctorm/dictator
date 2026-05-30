@@ -167,6 +167,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 3) Pošli aktivní slovník do TranscriptionEngine ještě před prvním přepisem.
         _ = LearningEngine.shared
         transcriptionHistory = HistoryStore.load()
+        if !transcriptionHistory.isEmpty {
+            OnboardingPreference.completedFirstDictation = true
+        }
         pushTranscriptionHistoryToPanels()
         pushLearningSnapshotToEngine()
         AudioCache.purgeStale()
@@ -736,12 +739,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if transcriptionHistory.count > maxTranscriptionHistoryCount {
             transcriptionHistory.removeSubrange(maxTranscriptionHistoryCount ..< transcriptionHistory.count)
         }
+        if !OnboardingPreference.completedFirstDictation {
+            OnboardingPreference.completedFirstDictation = true
+        }
         scheduleHistoryPersist()
         pushTranscriptionHistoryToPanels()
     }
 
     private func pushTranscriptionHistoryToPanels() {
         launchWindowController?.setTranscriptionHistory(transcriptionHistory)
+        launchWindowController?.updateOnboardingPresentation(historyIsEmpty: transcriptionHistory.isEmpty)
     }
 
     private func scheduleHistoryPersist() {

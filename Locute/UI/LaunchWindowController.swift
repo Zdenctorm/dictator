@@ -19,6 +19,7 @@ final class LaunchWindowController: NSWindowController {
     private let retryButton = AppTheme.primaryButton("Zkusit znovu", target: nil, action: nil)
     private let transcriptionPanel = TranscriptionPanelView()
     private var transcriptionCard: NSView!
+    private let firstRunCard = NSView()
 
     init(stateMachine: AppStateMachine) {
         self.stateMachine = stateMachine
@@ -54,6 +55,11 @@ final class LaunchWindowController: NSWindowController {
         showWindow(nil)
     }
 
+    func updateOnboardingPresentation(historyIsEmpty: Bool) {
+        let showHint = historyIsEmpty && !OnboardingPreference.completedFirstDictation
+        firstRunCard.isHidden = !showHint
+    }
+
     private func buildUI() {
         let logo = AppLogoView()
         logo.translatesAutoresizingMaskIntoConstraints = false
@@ -81,6 +87,10 @@ final class LaunchWindowController: NSWindowController {
         downloadProgressIndicator.isIndeterminate = false
         downloadProgressIndicator.style = .bar
         downloadProgressIndicator.controlSize = .regular
+        downloadProgressIndicator.setAccessibilityLabel("Průběh stahování modelu")
+        downloadProgressIndicator.setAccessibilityRole(.progressIndicator)
+
+        buildFirstRunCard()
 
         transcriptionCard = transcriptionPanel
         transcriptionPanel.onInsert = { [weak self] text in
@@ -134,7 +144,11 @@ final class LaunchWindowController: NSWindowController {
         header.translatesAutoresizingMaskIntoConstraints = false
         transcriptionCard.translatesAutoresizingMaskIntoConstraints = false
 
+        firstRunCard.translatesAutoresizingMaskIntoConstraints = false
+        firstRunCard.isHidden = true
+
         contentView.addSubview(header)
+        contentView.addSubview(firstRunCard)
         contentView.addSubview(transcriptionCard)
         contentView.addSubview(bottomStack)
 
@@ -144,7 +158,11 @@ final class LaunchWindowController: NSWindowController {
             header.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: pad),
             header.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -pad),
 
-            transcriptionCard.topAnchor.constraint(equalTo: header.bottomAnchor, constant: AppTheme.Spacing.hero),
+            firstRunCard.topAnchor.constraint(equalTo: header.bottomAnchor, constant: AppTheme.Spacing.stack),
+            firstRunCard.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: pad),
+            firstRunCard.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -pad),
+
+            transcriptionCard.topAnchor.constraint(equalTo: firstRunCard.bottomAnchor, constant: AppTheme.Spacing.stack),
             transcriptionCard.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: pad),
             transcriptionCard.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -pad),
             transcriptionCard.bottomAnchor.constraint(equalTo: bottomStack.topAnchor, constant: -AppTheme.Spacing.stack),
@@ -155,6 +173,39 @@ final class LaunchWindowController: NSWindowController {
 
             modelCard.widthAnchor.constraint(equalTo: bottomStack.widthAnchor),
             statusLabel.widthAnchor.constraint(equalTo: bottomStack.widthAnchor)
+        ])
+    }
+
+    private func buildFirstRunCard() {
+        let hotkey = HotkeyPreference.current.hintLabel
+        let steps = AppTheme.label(
+            """
+            1. Otevři aplikaci, kam chceš psát (Mail, Poznámky, Slack…)
+            2. Podrž \(hotkey) a mluv
+            3. Pusť klávesu — text se vloží tam, kde máš kurzor
+            """,
+            font: AppTheme.Font.body,
+            color: AppTheme.Color.body,
+            lines: 0
+        )
+        let card = AppTheme.card([
+            AppTheme.label("Zkus první diktát", font: AppTheme.Font.headline, color: AppTheme.Color.title),
+            steps
+        ])
+        card.translatesAutoresizingMaskIntoConstraints = false
+        AccessibilitySupport.configure(
+            card,
+            label: "První diktát",
+            help: "Tři kroky k prvnímu přepisu. Okno můžeš kdykoli skrýt, \(AppBrand.displayName) zůstane v menu baru.",
+            role: .group
+        )
+
+        firstRunCard.addSubview(card)
+        NSLayoutConstraint.activate([
+            card.leadingAnchor.constraint(equalTo: firstRunCard.leadingAnchor),
+            card.trailingAnchor.constraint(equalTo: firstRunCard.trailingAnchor),
+            card.topAnchor.constraint(equalTo: firstRunCard.topAnchor),
+            card.bottomAnchor.constraint(equalTo: firstRunCard.bottomAnchor)
         ])
     }
 
