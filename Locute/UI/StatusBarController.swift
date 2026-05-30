@@ -16,6 +16,9 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     var onOpenLearnedTerms: (() -> Void)?
     var onMenuWillOpen: (() -> Void)?
     var onShowTranscriptionPopover: ((NSStatusBarButton) -> Void)?
+    var onPasteAgain: (() -> Void)?
+    var onCopyLastTranscript: (() -> Void)?
+    var lastTranscriptProvider: (() -> TranscriptionHistoryEntry?)?
     var hotkeyHealthProvider: (() -> HotkeyHealth)?
 
     var statusButton: NSStatusBarButton? { statusItem.button }
@@ -39,9 +42,19 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         action: #selector(showLastTranscriptionFromMenu),
         keyEquivalent: ""
     )
+    private let pasteAgainMenuItem = NSMenuItem(
+        title: "Vložit znovu",
+        action: #selector(pasteAgainFromMenu),
+        keyEquivalent: ""
+    )
+    private let copyLastTranscriptMenuItem = NSMenuItem(
+        title: "Zkopírovat poslední přepis",
+        action: #selector(copyLastTranscriptFromMenu),
+        keyEquivalent: ""
+    )
     private let launchAtLoginItem = NSMenuItem(title: "Spouštět po přihlášení", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
     private let postProcessingItem = NSMenuItem(
-        title: "Oprava přepisu na Macu (lokální LLM)",
+        title: "Oprava textu na Macu",
         action: #selector(togglePostProcessing),
         keyEquivalent: ""
     )
@@ -88,6 +101,18 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         lastTranscriptionMenuItem.target = self
         menu.addItem(lastTranscriptionMenuItem)
 
+        pasteAgainMenuItem.target = self
+        pasteAgainMenuItem.isHidden = true
+        AccessibilitySupport.configure(
+            pasteAgainMenuItem,
+            help: "Vloží poslední přepis do aplikace, kde máš kurzor."
+        )
+        menu.addItem(pasteAgainMenuItem)
+
+        copyLastTranscriptMenuItem.target = self
+        copyLastTranscriptMenuItem.isHidden = true
+        menu.addItem(copyLastTranscriptMenuItem)
+
         menu.addItem(.separator())
 
         let preferencesItem = NSMenuItem(title: "Nastavení…", action: #selector(openPreferences), keyEquivalent: ",")
@@ -116,6 +141,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         postProcessingItem.state = PostProcessingPreference.isEnabled ? .on : .off
         hintMenuItem.title = activationHintLine()
         refreshDictationMenuItems()
+        refreshLastTranscriptMenuItems()
     }
 
     func refreshDictationMenuItems() {
@@ -165,7 +191,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
         baseStatusTitle = state.displayText
         if transientResetTimer == nil {
-            statusMenuItem.title = baseStatusTitle
+            applyStatusMenuTitle(for: state)
         }
         hintMenuItem.title = contextualHint(for: state)
         refreshDictationMenuItems()
@@ -230,9 +256,56 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             Task { @MainActor in
                 guard let self else { return }
                 self.transientResetTimer = nil
-                self.statusMenuItem.title = self.baseStatusTitle
+                self.applyStatusMenuTitle(for: self.stateMachine.state)
             }
         }
+    }
+
+    private func refreshLastTranscriptMenuItems() {
+        let entry = lastTranscriptProvider?()
+        let hasEntry = entry != nil && !(entry?.text.isEmpty ?? true)
+        let canUseLast = hasEntry && stateMachine.state == .idle
+
+        pasteAgainMenuItem.isHidden = !canUseLast
+        copyLastTranscriptMenuItem.isHidden = !canUseLast
+
+        if hasEntry, let text = entry?.text {
+            let preview = Self.truncatedMenuPreview(text)
+            lastTranscriptionMenuItem.title = "Poslední přepis: \(preview)"
+            lastTranscriptionMenuItem.isEnabled = true
+        } else {
+            lastTranscriptionMenuItem.title = "Poslední přepis…"
+            lastTranscriptionMenuItem.isEnabled = false
+            AccessibilitySupport.configure(
+                lastTranscriptionMenuItem,
+                help: "Zatím žádný přepis. Podrž \(HotkeyPreference.current.hintLabel) a mluv."
+            )
+        }
+    }
+
+    private func applyStatusMenuTitle(for state: LocuteState) {
+        if case .idle = state {
+            let title = NSMutableAttributedString(
+                string: "● ",
+                attributes: [.foregroundColor: AppTheme.Color.success]
+            )
+            title.append(NSAttributedString(
+                string: state.displayText,
+                attributes: [.foregroundColor: NSColor.labelColor]
+            ))
+            statusMenuItem.attributedTitle = title
+        } else {
+            statusMenuItem.attributedTitle = nil
+            statusMenuItem.title = state.displayText
+        }
+    }
+
+    private static func truncatedMenuPreview(_ text: String, maxLength: Int = 44) -> String {
+        let collapsed = text
+            .replacingOccurrences(of: "\n", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard collapsed.count > maxLength else { return collapsed }
+        return String(collapsed.prefix(maxLength)).trimmingCharacters(in: .whitespaces) + "…"
     }
 
     private func contextualHint(for state: LocuteState) -> String {
@@ -444,6 +517,14 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         } else {
             onShowLastTranscription?()
         }
+    }
+
+    @objc private func pasteAgainFromMenu() {
+        onPasteAgain?()
+    }
+
+    @objc private func copyLastTranscriptFromMenu() {
+        onCopyLastTranscript?()
     }
 
     @objc private func openLearnedTerms() {

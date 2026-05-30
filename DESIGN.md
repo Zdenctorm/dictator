@@ -121,7 +121,7 @@ Pojmenování pro copy a AI — mapování v `AppTheme.Color`.
 ### Menu bar
 
 - Status item square; states change icon (mic / waveform / error) — template where idle.
-- **Target pattern** (Whispur): Ready badge, last transcript, Paste again — viz PRODUCT principles.
+- **Whispur pattern (implemented):** idle status `● Připraveno` (success dot + text); „Poslední přepis“ s náhledem řádku; „Vložit znovu“ a „Zkopírovat poslední přepis“ když existuje historie.
 
 ### Permission rows
 

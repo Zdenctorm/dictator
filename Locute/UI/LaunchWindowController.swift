@@ -10,7 +10,19 @@ final class LaunchWindowController: NSWindowController {
     private var cancellables = Set<AnyCancellable>()
     private var modelLoadStartedAt: Date?
     private var modelLoadTimer: Timer?
-    private let statusLabel = NSTextField(labelWithString: "Starting")
+    private let heroDetailLabel = AppTheme.label(
+        "",
+        font: AppTheme.Font.body,
+        color: AppTheme.Color.body,
+        lines: 0
+    )
+    private let statusLabel = AppTheme.label(
+        "Spouštím…",
+        font: AppTheme.Font.status,
+        color: AppTheme.Color.title,
+        lines: 0
+    )
+    private var hotkeyObserver: NSObjectProtocol?
     private let downloadTitleLabel = AppTheme.label("", font: AppTheme.Font.headline, color: AppTheme.Color.title)
     private let downloadProgressIndicator = NSProgressIndicator()
     private let downloadDetailLabel = AppTheme.label("", font: AppTheme.Font.body, color: AppTheme.Color.body, lines: 0)
@@ -34,7 +46,28 @@ final class LaunchWindowController: NSWindowController {
         super.init(window: window)
         buildUI()
         observeState()
+        refreshHotkeyCopy()
         update(for: stateMachine.state)
+        hotkeyObserver = NotificationCenter.default.addObserver(
+            forName: .locuteHotkeyPreferenceChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.refreshHotkeyCopy()
+            }
+        }
+    }
+
+    deinit {
+        if let hotkeyObserver {
+            NotificationCenter.default.removeObserver(hotkeyObserver)
+        }
+    }
+
+    private func refreshHotkeyCopy() {
+        heroDetailLabel.stringValue =
+            "Soukromé diktování v češtině. Podrž \(HotkeyPreference.current.hintLabel), mluv a pusť — text se vloží tam, kde máš kurzor. Historie přepisů je níže (záloha a opravy slov)."
     }
 
     required init?(coder: NSCoder) {
@@ -64,16 +97,10 @@ final class LaunchWindowController: NSWindowController {
 
         let title = AppTheme.label("\(AppBrand.displayName) běží", font: AppTheme.Font.largeTitle, color: AppTheme.Color.title)
 
-        let detail = AppTheme.label(
-            "Soukromé diktování v češtině. Podržte \(HotkeyPreference.current.hintLabel), mluvte a pusťte — text se vloží do aplikace, kde máte kurzor. Historie přepisů je níže (záloha a opravy slov).",
-            font: AppTheme.Font.body,
-            color: AppTheme.Color.body,
-            lines: 0
-        )
-
-        statusLabel.font = AppTheme.Font.status
-        statusLabel.textColor = AppTheme.Color.title
-        statusLabel.maximumNumberOfLines = 0
+        heroDetailLabel.stringValue =
+            "Soukromé diktování v češtině. Podrž \(HotkeyPreference.current.hintLabel), mluv a pusť — text se vloží tam, kde máš kurzor. Historie přepisů je níže (záloha a opravy slov)."
+        AccessibilitySupport.configure(statusLabel, label: "Stav aplikace")
+        AccessibilitySupport.configure(downloadProgressIndicator, label: "Průběh stahování modelu")
 
         downloadProgressIndicator.minValue = 0
         downloadProgressIndicator.maxValue = 1
@@ -105,7 +132,7 @@ final class LaunchWindowController: NSWindowController {
         actions.alignment = .centerY
         actions.spacing = AppTheme.Spacing.row
 
-        let headerText = NSStackView(views: [title, detail])
+        let headerText = NSStackView(views: [title, heroDetailLabel])
         headerText.orientation = .vertical
         headerText.alignment = .leading
         headerText.spacing = AppTheme.Spacing.tight
@@ -168,8 +195,9 @@ final class LaunchWindowController: NSWindowController {
     private func update(for state: LocuteState) {
         switch state {
         case .idle:
-            statusLabel.stringValue = "Připraveno. Okno můžete skrýt, \(AppBrand.displayName) zůstane dostupný v horní liště."
+            statusLabel.stringValue = "Připraveno. Okno můžeš skrýt, \(AppBrand.displayName) zůstane v horní liště."
             statusLabel.textColor = AppTheme.Color.title
+            AccessibilitySupport.announce("Připraveno k diktování")
             retryButton.isHidden = true
         case .modelDownloading(let progress):
             if modelLoadStartedAt == nil {
@@ -179,6 +207,8 @@ final class LaunchWindowController: NSWindowController {
             latestDownloadProgress = progress
             downloadCard?.isHidden = false
             downloadProgressIndicator.doubleValue = progress.fraction
+            let pct = Int(progress.fraction * 100)
+            downloadProgressIndicator.setAccessibilityValue("\(pct) procent")
             updateModelLoadMessage()
             statusLabel.textColor = AppTheme.Color.title
             retryButton.isHidden = true
@@ -191,7 +221,8 @@ final class LaunchWindowController: NSWindowController {
         case .permissionsNeeded:
             stopModelLoadTimer()
             downloadCard?.isHidden = true
-            statusLabel.stringValue = "Je potřeba povolit mikrofon a Zpřístupnění."
+            statusLabel.stringValue =
+                "Je potřeba povolit mikrofon, Zpřístupnění a Monitorování vstupu — otevři Průvodce nastavením z menu."
             statusLabel.textColor = AppTheme.Color.title
             retryButton.isHidden = true
         case .error(let message):
@@ -199,6 +230,7 @@ final class LaunchWindowController: NSWindowController {
             downloadCard?.isHidden = true
             statusLabel.stringValue = message
             statusLabel.textColor = AppTheme.Color.danger
+            AccessibilitySupport.announce("Chyba: \(message)")
             retryButton.isHidden = false
         default:
             stopModelLoadTimer()

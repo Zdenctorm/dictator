@@ -38,9 +38,12 @@ final class StatusBarPopoverController: NSObject, NSPopoverDelegate {
             formatter.timeStyle = .short
             timestampLabel.stringValue = formatter.string(from: entry.recordedAt)
             timestampLabel.isHidden = false
+            AccessibilitySupport.configure(previewLabel, label: "Text posledního přepisu")
+            AccessibilitySupport.configure(timestampLabel, label: "Čas přepisu: \(timestampLabel.stringValue)")
         } else {
             previewLabel.stringValue = "Zatím žádný přepis. Podrž \(HotkeyPreference.current.hintLabel) a mluv."
             timestampLabel.isHidden = true
+            AccessibilitySupport.configure(previewLabel, label: previewLabel.stringValue)
         }
 
         if popover.isShown {
@@ -64,7 +67,7 @@ final class StatusBarPopoverController: NSObject, NSPopoverDelegate {
         timestampLabel.textColor = AppTheme.Color.body
 
         let copyButton = AppTheme.secondaryButton("Zkopírovat", target: self, action: #selector(copyTapped))
-        let insertButton = AppTheme.primaryButton("Vložit", target: self, action: #selector(insertTapped))
+        let insertButton = AppTheme.primaryButton("Vložit znovu", target: self, action: #selector(insertTapped))
         let buttons = NSStackView(views: [copyButton, insertButton])
         buttons.orientation = .horizontal
         buttons.spacing = AppTheme.Spacing.row
@@ -74,6 +77,11 @@ final class StatusBarPopoverController: NSObject, NSPopoverDelegate {
             target: self,
             action: #selector(openFullHistoryTapped)
         )
+
+        AccessibilitySupport.configure(title, label: "Poslední přepis")
+        AccessibilitySupport.configure(copyButton, label: "Zkopírovat přepis do schránky")
+        AccessibilitySupport.configure(insertButton, label: "Vložit přepis znovu do aktivní aplikace")
+        AccessibilitySupport.configure(historyButton, label: "Otevřít celou historii přepisů")
 
         let stack = NSStackView(views: [title, timestampLabel, previewLabel, buttons, historyButton])
         stack.orientation = .vertical
